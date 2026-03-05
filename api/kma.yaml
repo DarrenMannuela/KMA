@@ -1,0 +1,999 @@
+openapi: 3.0.4
+info:
+  title: KMA - OpenAPI 3.0
+  description: KMA main API
+  termsOfService: https://swagger.io/terms/
+  contact:
+    email: darren.mannuela@gmail.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+  version: 1.0.12
+externalDocs:
+  description: Find out more about Swagger
+  url: https://swagger.io
+servers:
+  - url: http://localhost:8000/api/v1
+tags:
+  - name: Order Entry
+    description: Entire workflow of order entry
+  - name: Delivery Entry
+    description: Entire workflow of delivery entry
+  - name: Supplier Entry
+    description: Entire workflow of supplier entry
+  - name: Production Entry
+    description: Entire workflow of production entry
+  - name: Operation Entry
+    description: Entire workflow of operation entry
+paths:
+
+  # CRUD of Orders schema
+  /order:
+    get:
+      tags:
+        - Order Entry
+      summary: Finds all the orders
+      description: GETs all the orders 
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Orders'
+            application/xml:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Orders'
+        '404':
+          description: Not Found
+    post:
+      tags: 
+        - Order Entry
+      summary: Post an order
+      description: POST an order into the database
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Orders'
+      responses:
+        '201':
+          description: Order created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Orders'
+        '400':
+          description: Invalid input
+  /order/{id}:
+      put:
+        tags:
+          - Order Entry
+        summary: Update a specific order entry based on its ID
+        description: Change or update any order entry based on ID 
+        parameters:
+          - name: id
+            in: path
+            required: true
+            schema:
+              type: string
+            description: Order ID to be changed
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Orders'
+        responses:
+          '200':
+            description: Order entry successfully updated
+          '404':
+            description: Order entry not found
+      patch: 
+        tags: 
+          - Order Entry
+        summary: Update a specific portion of an entry
+        description: Change or update any portion of a order entry based on ID
+        parameters:
+          - name: id
+            in: path
+            required: true
+            schema:
+              type: string
+            description: Order ID to be changed
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Orders'
+        responses:
+          '200':
+            description: Order entry successfully updated
+          '404':
+            description: Order entry not found
+      delete:
+        tags: 
+          - Order Entry
+        summary: Deleting a specific order entry based on ID
+        description: Deleting an order entry
+        parameters:
+          - name: id
+            in: path
+            required: true
+            schema:
+              type: string
+            description: Order Id to be deleted
+        responses:
+          '200':
+            description: Order entry has been deleted
+          '404':
+            description: Order entry not found
+ 
+  # CRUD of Items schema            
+  /items:
+    get:
+      tags: 
+        - Order Entry
+      summary: Finds all the orders
+      description: GETs all the orders 
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Items'
+            application/xml:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Items'
+        '404':
+          description: Not Found
+    post:
+      tags: 
+        - Order Entry
+      summary: Post an item
+      description: POST item into the database
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Items'
+      responses:
+        '201':
+          description: Items created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Items'
+        '400':
+          description: Invalid input
+  /items/{id}:
+    put:
+      tags:
+        - Order Entry
+      summary: Update a specific item entry based on ID
+      description: Change or update any item entry based on ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Item ID to be changed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Items'
+      responses:
+          '200':
+            description: Item entry successfully updated
+          '404':
+            description: Item entry not found
+    patch:
+      tags:
+        - Order Entry
+      summary: Update a specific item entry based on ID
+      description: Change or update any item entry based on ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Item ID to be changed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Items'
+      responses:
+          '200':
+            description: Item entry successfully updated
+          '404':
+            description: Item entry not found
+    delete:
+      tags: 
+        - Order Entry
+      summary: Deleting a specific item entry based on ID
+      description: Deleting an item entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Item Id to be deleted
+      responses:
+        '200':
+          description: Item entry has been deleted
+        '404':
+          description: Item entry not found
+  /surat-jalan:
+    get:
+      tags:
+        - Order Entry
+      summary: Make Surat Jalan for a specific Order Recap
+      description: Making a Surat Jalan for Order
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Surat_jalan'
+            application/xml:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Surat_jalan'
+        '404':
+          description: Not Found
+    post:
+      tags:
+        - Order Entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Surat_jalan'
+      responses:
+        '201':
+          description: Surat Jalan created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Surat_jalan'
+        '400':
+          description: Invalid input
+          
+  # CRUD of Order Recap schema
+  /order-recap:
+    get:
+      tags:
+        - Order Entry
+      description: Find all the order-recap
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order_recap'
+            application/xml:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order_recap'
+        '404':
+          description: Not Found
+    post:
+      tags:
+        - Order Entry
+      summary: POST item into the database
+      description: POST a order-recap into the database
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Order_recap'
+      responses:
+        '201':
+          description: Order-recap created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order_recap'
+        '400':
+          description: Invalid input
+  /order-recap/{id}:
+    put:
+      tags:
+        - Order Entry
+      summary: Update a specific order-recap entry based on its ID
+      description: Change or update any order-recap entry based on ID 
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Order-recap ID to be changed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Order_recap'
+      responses:
+        '200':
+          description: Order-recap entry successfully updated
+        '404':
+          description: Order-recap entry not found
+    patch:
+      tags:
+        - Order Entry
+      summary: Update a specific part of a order-recap entry based on its ID
+      description: Change or update a specific part order-recap entry based on ID 
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Order-recap ID to be changed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Order_recap'
+      responses:
+        '200':
+          description: Order-recap entry successfully updated
+        '404':
+          description: Order-recap entry not found
+    delete:
+      tags:
+        - Order Entry
+      summary: DELETE specific order-recap entry based on its ID
+      description: DELETE any order-recap entry based on ID 
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Order-recap ID to be changed
+      responses:
+        '200':
+          description: Order-recap entry successfully DELETED
+        '404':
+          description: Order-recap entry not found
+          
+  # CRUD of Delivery schema
+  /delivery:
+    get:
+      tags:
+      - Delivery Entry
+      summary: Find all delivery
+      description: GETs all delivery entries
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Orders'
+            application/xml:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Orders'
+        '404':
+          description: Not Found
+    post:
+      tags:
+      - Delivery Entry
+      summary: POST a delivery
+      description: POST a delivery entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: 
+              $ref: '#/components/schemas/Delivery'
+      responses:
+        '201':
+          description: Delivery created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Delivery'
+        '400':
+          description: Invalid input
+  /delivery/{id}:
+    put:
+        tags:
+          - Delivery Entry
+        summary: Update a specific delivery entry based on its ID
+        description: Change or update any delivery entry based on ID 
+        parameters:
+          - name: id
+            in: path
+            required: true
+            schema:
+              type: string
+            description: Order-recap ID to be changed
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order_recap'
+        responses:
+          '200':
+            description: Order-recap entry successfully updated
+          '404':
+            description: Order-recap entry not found
+    patch:
+      tags:
+        - Delivery Entry
+      summary: Update a specific part of a delivery entry based on its ID
+      description: Change or update a specific part delivery entry based on ID 
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: delivery ID to be changed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Delivery_order'
+      responses:
+        '200':
+          description: Delivery entry successfully updated
+        '404':
+          description: Delivery entry not found
+    delete:
+      tags:
+        - Delivery Entry
+      summary: DELETE specific Delivery entry based on its ID
+      description: DELETE any Delivery entry based on ID 
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Delivery ID to be changed
+      responses:
+        '200':
+          description: Delivery entry successfully DELETED
+        '404':
+          description: Delivery entry not found
+  /supplier:
+    get:
+      tags:
+        - Supplier Entry
+      summary: Find all suppliers
+      responses:
+        '200':
+          description: successful operation
+          content:
+              application/json:
+                schema:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Supplier'
+              application/xml:
+                schema:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Supplier'
+        '404':
+          description: Not Found
+    post:
+      tags:
+        - Supplier Entry
+      summary: POST a new supplier
+      requestBody: 
+        required: true
+        content:
+          application/json: 
+            schema:
+              $ref: '#/components/schemas/Supplier'
+      responses:
+        '201':
+          description: Supplier created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Supplier'
+        '400':
+          description: Invalid input
+  /supplier/{id}:
+    patch:
+      tags: 
+        - Supplier Entry
+      summary: Update a specific supplier entry based on its ID
+      description: Change or update any supplier entry based on ID 
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: supplier ID to be changed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Supplier'
+      responses:
+        '200':
+          description: Supplier entry successfully updated
+        '404':
+          description: Supplier entry not found
+    delete:
+      tags:
+        - Supplier Entry
+      summary: DELETE specific Supplier entry based on its ID
+      description: DELETE any Supplier entry based on ID 
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Supplier ID to be changed
+      responses:
+        '200':
+          description: Supplier entry successfully DELETED
+        '404':
+          description: Supplier entry not found
+  /production-entry:
+    get:
+      tags:
+        - Production Entry
+      summary: Find all Production entries
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Production'
+            application/xml:
+                schema:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Production'
+        '404':
+          description: Not Found
+    post:
+      tags:
+        - Production Entry
+      summary: POST production entries
+      requestBody: 
+        required: true
+        content: 
+          application/json: 
+            schema:
+              $ref: '#/components/schemas/Production'
+      responses:
+        '201':
+          description: Production created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Production'
+        '400':
+          description: Invalid input
+          
+  /production-entry/{id}:
+    put:
+      tags:
+        - Production Entry
+      summary: Update a specific production entry based on its ID
+      description: Change or update any production entry based on ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: production ID to be changed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Production'
+      responses:
+        '200':
+          description: Production entry successfully updated
+        '404':
+          description: Production entry not found
+    patch:
+      tags:
+        - Production Entry
+      summary: Update a specific field production entry based on its ID
+      description: Change or update any field of a production entry based on ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: production ID to be changed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Production'
+      responses:
+        '200':
+          description: Production entry successfully updated
+        '404':
+          description: Production entry not found
+    delete:
+      tags:
+        - Production Entry
+      summary: DELETE specific Production entry based on its ID
+      description: DELETE any Production entry based on ID 
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Production ID to be changed
+      responses:
+        '200':
+          description: Production entry successfully DELETED
+        '404':
+          description: Production entry not found
+
+  /operation-entry:
+    get:
+      tags:
+        - Operation Entry
+      summary: Find all operation entries
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Operations'
+            application/xml:
+                schema:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Operations'
+        '404':
+          description: Not Found
+    post:
+      tags:
+        - Operation Entry
+      summary: POST production entries
+      requestBody: 
+        required: true
+        content: 
+          application/json: 
+            schema:
+              $ref: '#/components/schemas/Operations'
+      responses:
+        '201':
+          description: Production created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Production'
+        '400':
+          description: Invalid input
+          
+  /operation-entry/{id}:
+    put:
+      tags:
+        - Operation Entry
+      summary: Update a specific operation entry based on its ID
+      description: Change or update any operation entry based on ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: operation ID to be changed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Operations'
+      responses:
+        '200':
+          description: Operation entry successfully updated
+        '404':
+          description: Operation entry not found
+    patch:
+      tags:
+        - Operation Entry
+      summary: Update a specific field operation entry based on its ID
+      description: Change or update any field of a operation entry based on ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Operation ID to be changed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Operations'
+      responses:
+        '200':
+          description: Operation entry successfully updated
+        '404':
+          description: Operation entry not found
+    delete:
+      tags:
+        - Operation Entry
+      summary: DELETE specific Operationentry based on its ID
+      description: DELETE any Operation entry based on ID 
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Operation ID to be changed
+      responses:
+        '200':
+          description: Operation entry successfully DELETED
+        '404':
+          description: Operation entry not found         
+  
+components:
+  schemas:
+  # Order Entry schemas
+    Orders:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 001/KMA/25
+        company:
+          type: string
+          example: ZENBU
+        po_number:
+          type: string
+          example: P0012345
+        date:
+          type: string
+          format: date
+          example: 2025-01-01
+    Items:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 001/KMA/25
+        order_id:
+          type: string
+          example: 001/KMA/25
+        item_name:
+          type: string
+          example: APRON FULL
+        size:
+          type: string
+          example: S
+        amount:
+          type: integer
+          format: int64
+          example: 12
+        price:
+          type: integer
+          format: int64
+          example: 75000
+        subtotal:
+          type: integer
+          format: int64
+          example: 900000
+    Order_recap:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 001/KMA/25
+        total:
+          type: integer
+          format: int64
+          example: 900000
+        down_payment:
+          type : integer
+          format: int64
+          example: 450000
+        discount:
+          type: integer
+          format: int64
+          example: 100000
+        remaining:
+          type: integer
+          format: int64
+          example: 350000
+        ar_receivable:
+          type: integer
+          format: int64
+          example: 900000
+  # Delivery Entry schemas
+    Delivery:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 001/KMA/25
+        address:
+          type: string
+          example: hayam wuruk yello
+        po_number:
+          type: string
+          example: P00012345
+        phone_number:
+          type: string
+          example: 081219208887
+        contact_person:
+          type: string
+          example: Bu Tuti
+        date:
+          type: string
+          format: date
+          example: 2025-01-01
+    Surat_jalan:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 01
+        delivery_id:
+          type: string
+          example: 001/KMA/25
+        delivery_items:
+          type: array
+          items:
+            type: string
+          example: ["Apron full"]
+        size:
+          type: array
+          items:
+            type: string
+          example: ["S", "M", "L"]
+        amount:
+          type: integer
+          format: int64
+          example: 12
+    Delivery_order:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 01
+        delivery_id:
+          type: string
+          example: 01/SJ/25
+        item_name:
+          type: string
+          example: Apron full
+        size:
+          type: string
+          example: S
+        amount:
+          type: integer
+          format: int64
+          example: 12
+  # Production Entry schemas
+    Supplier:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        supplier_name:
+          type: string
+          example: SAI
+        supplier_category:
+          type: string
+          enum:
+            - sablon
+            - embroidery
+            - merchandise_supplier
+            - uniform_supplier
+            - general_supplier
+          example: sablon
+    Production:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 01/KB/26
+        description:
+          type: string
+          example: Lorem Ipsum
+        supplier_id:
+          type: integer
+          format: int64
+          example: 1 
+        material_name:
+          type: string
+          example: 101
+        price:
+          type: integer
+          format: int64
+          example: 750000
+        si_unit:
+          type: string
+          example: yard
+        amount:
+          type: integer
+          format: int64
+          example: 12
+    Operations:
+      type: object
+      properties:
+        id: 
+          type: string 
+          example: 01/KB/26
+        description:
+          type: string
+          example: Lorem Ipsum
+        price:
+          type: integer
+          format: int64
+          example: 1
+
+
+            
+        
+    
+          
+
+
