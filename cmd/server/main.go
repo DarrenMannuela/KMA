@@ -1,23 +1,21 @@
 package main
 
 import (
-	"log"
-
-	"github.com/DarrenMannuela/KMA/internal/database"
+	"github.com/DarrenMannuela/KMA/internal/handler"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func main() {
-	err := database.AutoMigrate()
-	if err != nil {
-		// If DB fails, we stop the server immediately
-		log.Fatalf("Failed to connect to database: %v", err)
-	}
+	// err := database.AutoMigrate()
+	// if err != nil {
+	// 	// If DB fails, we stop the server immediately
+	// 	log.Fatalf("Failed to connect to database: %v", err)
+	// }
 
-	// Optional: Log success
-	log.Println("Database connection established and migration complete.")
+	// // Optional: Log success
+	// log.Println("Database connection established and migration complete.")
 	r := gin.Default()
 
 	// 1. Serve the raw OpenAPI YAML file (needed for Swagger UI to render)
@@ -40,7 +38,11 @@ func main() {
 		v1.GET("/delivery", func(c *gin.Context) { c.JSON(200, gin.H{"message": "get all deliveries"}) })
 
 		// Supplier Entry
-		v1.GET("/supplier", func(c *gin.Context) { c.JSON(200, gin.H{"message": "get all suppliers"}) })
+		v1.GET("/supplier", handler.GetSupplier)
+		v1.POST("/supplier", handler.SetSupplier)
+		v1.GET("/supplier/:id", handler.GetSupplierByID)
+		v1.PATCH("/supplier/:id", handler.UpdateSupplier)
+		v1.DELETE("/supplier/:id", handler.DeleteSupplier)
 
 		// Production Entry
 		v1.GET("/production-entry", func(c *gin.Context) { c.JSON(200, gin.H{"message": "get production"}) })

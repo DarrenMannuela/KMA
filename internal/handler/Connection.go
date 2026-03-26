@@ -5,10 +5,10 @@ import (
 	"gorm.io/gorm"
 )
 
-func Connect() (*gorm.DB, error) {
+func Connect() *gorm.DB {
 	db, err := gorm.Open(sqlite.Open("./db_data/kma.sqlite"), &gorm.Config{})
 	if err != nil {
-		return nil, err
+		return nil
 	}
-	return db, nil
+	return db
 }
