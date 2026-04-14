@@ -1,6 +1,9 @@
 package main
 
 import (
+	"log"
+
+	"github.com/DarrenMannuela/KMA/internal/database"
 	"github.com/DarrenMannuela/KMA/internal/handler"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
@@ -13,6 +16,11 @@ func main() {
 	// 	// If DB fails, we stop the server immediately
 	// 	log.Fatalf("Failed to connect to database: %v", err)
 	// }
+
+	err := database.DropAllTables()
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
 
 	// // Optional: Log success
 	// log.Println("Database connection established and migration complete.")

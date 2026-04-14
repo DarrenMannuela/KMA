@@ -8,5 +8,5 @@ type Items struct {
 	Amount   int     `json:"amount" default:""`
 	Price    int64   `json:"price" default:""`
 	SubTotal int64   `json:"sub_total" default:""`
-	Orders   Orders  `gorm:"foreignKey:OrderId"`
+	Orders   Orders  `gorm:"foreignKey:OrderId;constraint:OnUpdate:CASCADE,OnDelete:CASCADEX;"`
 }
