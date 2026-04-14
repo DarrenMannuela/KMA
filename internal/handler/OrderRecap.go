@@ -18,6 +18,7 @@ func GetOrderRecap(c *gin.Context) {
 
 }
 
-func PostOrderRecap(c *gin.Context) {
-	var newOrder dto.OrderRecap
-}
+// func PostOrderRecap(c *gin.Context) {
+// 	var newOrder dto.OrderRecap
+
+// }
