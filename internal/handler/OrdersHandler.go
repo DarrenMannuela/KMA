@@ -47,6 +47,8 @@ func UpdateOrders(c *gin.Context) {
 	if err := db.First(&updateOrder, id); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Supplier not found"})
 	}
+	db.Save(&updateOrder)
+	c.JSON(http.StatusOK, updateOrder)
 
 }
 

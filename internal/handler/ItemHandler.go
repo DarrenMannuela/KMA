@@ -48,6 +48,8 @@ func UpdateItems(c *gin.Context) {
 	if err := db.First(&updateItems, id); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Supplier not found"})
 	}
+	db.Save(&updateItems)
+	c.JSON(http.StatusOK, updateItems)
 }
 
 func DeleteItems(c *gin.Context) {

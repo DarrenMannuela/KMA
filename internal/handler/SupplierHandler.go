@@ -20,7 +20,7 @@ func GetSupplier(c *gin.Context) {
 	return
 }
 
-func SetSupplier(c *gin.Context) {
+func PostSupplier(c *gin.Context) {
 	var supplier dto.Supplier
 	db := Connect()
 
