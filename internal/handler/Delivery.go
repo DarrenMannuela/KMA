@@ -52,5 +52,18 @@ func UpdateDelivery(c *gin.Context) {
 
 func DeleteDelivery(c *gin.Context) {
 	id := c.Param("id")
+	db := Connect()
+
+	result := db.Delete(&dto.Items{}, id)
+
+	if result.RowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Item not found"})
+	}
+
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Delete failed"})
+	}
+
+	c.Status(http.StatusNoContent)
 
 }
