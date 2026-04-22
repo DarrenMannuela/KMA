@@ -47,7 +47,7 @@ func main() {
 
 		// Supplier Entry
 		v1.GET("/supplier", handler.GetSupplier)
-		v1.POST("/supplier", handler.SetSupplier)
+		v1.POST("/supplier", handler.PostSupplier)
 		v1.GET("/supplier/:id", handler.GetSupplierByID)
 		v1.PATCH("/supplier/:id", handler.UpdateSupplier)
 		v1.DELETE("/supplier/:id", handler.DeleteSupplier)

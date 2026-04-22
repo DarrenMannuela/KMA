@@ -54,10 +54,10 @@ func DeleteDelivery(c *gin.Context) {
 	id := c.Param("id")
 	db := Connect()
 
-	result := db.Delete(&dto.Items{}, id)
+	result := db.Delete(&dto.Delivery{}, id)
 
 	if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Item not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Delivery not found"})
 	}
 
 	if result.Error != nil {
