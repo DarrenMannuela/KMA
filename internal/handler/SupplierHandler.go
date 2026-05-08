@@ -17,7 +17,7 @@ func GetSupplier(c *gin.Context) {
 		c.JSON(500, gin.H{"error": results.Error.Error()})
 	}
 	c.JSON(200, suppliers)
-	return
+
 }
 
 func PostSupplier(c *gin.Context) {
