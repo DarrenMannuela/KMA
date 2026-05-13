@@ -9,5 +9,5 @@ type OrderRecap struct {
 	Amount       int64  `json:"amount" default:""`
 	Remaining    int64  `json:"remaining" default:""`
 	ArReceivable int64  `json:"sub_total" default:""`
-	Orders       Orders `gorm:"foreignKey:OrderId;constraint:OnUpdate:CASCADE,OnDelete:CASCADEX;"`
+	Orders       Orders `gorm:"foreignKey:OrderId;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
