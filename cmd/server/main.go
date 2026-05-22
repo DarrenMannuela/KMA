@@ -45,10 +45,10 @@ func main() {
 		v1.DELETE("/order/:id", handler.DeleteOrders)
 
 		// Delivery Entry
-		v1.GET("/deliver", handler.GetDelivery)
+		v1.GET("/delivery", handler.GetDelivery)
 		v1.POST("/delivery", handler.PostDelivery)
 		v1.PATCH("/delivery/:id", handler.UpdateDelivery)
-		v1.DELETE("/deliver/:id", handler.DeleteDelivery)
+		v1.DELETE("/delivery/:id", handler.DeleteDelivery)
 
 		// Supplier Entry
 		v1.GET("/supplier", handler.GetSupplier)
