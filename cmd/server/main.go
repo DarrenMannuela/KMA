@@ -39,11 +39,16 @@ func main() {
 	v1 := r.Group("/api/v1")
 	{
 		// Order Entry
-		v1.GET("/order", func(c *gin.Context) { c.JSON(200, gin.H{"message": "get all orders"}) })
-		v1.POST("/order", func(c *gin.Context) { c.JSON(201, gin.H{"status": "order created"}) })
+		v1.GET("/order", handler.GetOrders)
+		v1.POST("/order", handler.PostOrders)
+		v1.PATCH("/order/:id", handler.UpdateOrders)
+		v1.DELETE("/order/:id", handler.DeleteOrders)
 
 		// Delivery Entry
-		v1.GET("/delivery", func(c *gin.Context) { c.JSON(200, gin.H{"message": "get all deliveries"}) })
+		v1.GET("/deliver", handler.GetDelivery)
+		v1.POST("/delivery", handler.PostDelivery)
+		v1.PATCH("/delivery/:id", handler.UpdateDelivery)
+		v1.DELETE("/deliver/:id", handler.DeleteDelivery)
 
 		// Supplier Entry
 		v1.GET("/supplier", handler.GetSupplier)
@@ -53,10 +58,40 @@ func main() {
 		v1.DELETE("/supplier/:id", handler.DeleteSupplier)
 
 		// Production Entry
-		v1.GET("/production-entry", func(c *gin.Context) { c.JSON(200, gin.H{"message": "get production"}) })
+		v1.GET("/production", handler.GetProduction)
+		v1.POST("/production", handler.PostProduction)
+		v1.PATCH("/production/:id", handler.UpdateProduction)
+		v1.DELETE("/production/:id", handler.DeleteProduction)
 
 		// Operation Entry
-		v1.GET("/operation-entry", func(c *gin.Context) { c.JSON(200, gin.H{"message": "get operations"}) })
+		v1.GET("/operation", handler.GetOperation)
+		v1.POST("/operation", handler.PostOperation)
+		v1.PATCH("/operation/:id", handler.UpdateOperation)
+		v1.DELETE("/operation/:id", handler.DeleteOperation)
+
+		// Order-Recap Entry
+		v1.GET("/order-recap", handler.GetOrderRecap)
+		v1.POST("/order-recap", handler.PostOrderRecap)
+		v1.PATCH("/order-recap/:id", handler.UpdateOrderRecap)
+		v1.DELETE("/order-recap/:id", handler.DeleteOrderRecap)
+
+		// Surat Jalan Entry
+		v1.GET("/surat-jalan", handler.GetSuratJalan)
+		v1.POST("/surat-jalan", handler.PostSuratJalan)
+		v1.PATCH("/surat-jalan/:id", handler.UpdateSuratJalan)
+		v1.DELETE("/surat-jalan/:id", handler.DeleteSuratJalan)
+
+		// Item Entry
+		v1.GET("/item", handler.GetItems)
+		v1.POST("/item", handler.PostItems)
+		v1.PATCH("/item/:id", handler.UpdateItems)
+		v1.DELETE("/item/:id", handler.DeleteItems)
+
+		// Delivery Order Entry
+		v1.GET("/delivery-order", handler.GetDeliveryOrder)
+		v1.POST("/delivery-order", handler.PostDeliveryOrder)
+		v1.PATCH("/delivery-order/:id", handler.UpdateDeliveryOrder)
+		v1.DELETE("/delivery-order/:id", handler.DeleteDeliveryOrder)
 	}
 
 	// Start server on port 8000 to match your OpenAPI 'servers' list
