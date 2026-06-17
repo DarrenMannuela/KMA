@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/DarrenMannuela/KMA/dto"
 	"github.com/gin-gonic/gin"
@@ -36,7 +37,7 @@ func PostSuratJalan(c *gin.Context) {
 }
 
 func UpdateSuratJalan(c *gin.Context) {
-	id := c.Param("id")
+	id := strings.TrimPrefix(c.Param("id"), "/")
 	var updateSuratJalan dto.SuratJalan
 	db := Connect()
 
@@ -53,17 +54,17 @@ func UpdateSuratJalan(c *gin.Context) {
 }
 
 func DeleteSuratJalan(c *gin.Context) {
-	id := c.Param("id")
+	id := strings.TrimPrefix(c.Param("id"), "/")
 	db := Connect()
 
-	result := db.Delete(&dto.SuratJalan{}, id)
-
-	if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "SuratJalan not found"})
-	}
+	result := db.Where("id = ?", id).Delete(&dto.SuratJalan{})
 
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Delete failed"})
+	}
+
+	if result.RowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Production not found"})
 	}
 
 	c.Status(http.StatusNoContent)

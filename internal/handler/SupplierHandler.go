@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/DarrenMannuela/KMA/dto"
 	"github.com/gin-gonic/gin"
@@ -38,7 +39,7 @@ func PostSupplier(c *gin.Context) {
 }
 
 func GetSupplierByID(c *gin.Context) {
-	id := c.Param("id")
+	id := strings.TrimPrefix(c.Param("id"), "/")
 	var supplier dto.Supplier
 
 	db := Connect()
@@ -56,7 +57,7 @@ func GetSupplierByID(c *gin.Context) {
 }
 
 func UpdateSupplier(c *gin.Context) {
-	id := c.Param("id")
+	id := strings.TrimPrefix(c.Param("id"), "/")
 	var supplier dto.Supplier
 
 	db := Connect()
@@ -76,7 +77,7 @@ func UpdateSupplier(c *gin.Context) {
 }
 
 func DeleteSupplier(c *gin.Context) {
-	id := c.Param("id")
+	id := strings.TrimPrefix(c.Param("id"), "/")
 	db := Connect()
 
 	result := db.Delete(&dto.Supplier{}, id)

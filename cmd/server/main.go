@@ -61,7 +61,7 @@ func main() {
 		v1.GET("/production", handler.GetProduction)
 		v1.POST("/production", handler.PostProduction)
 		v1.PATCH("/production/:id", handler.UpdateProduction)
-		v1.DELETE("/production/:id", handler.DeleteProduction)
+		v1.DELETE("/production/*id", handler.DeleteProduction)
 
 		// Operation Entry
 		v1.GET("/operation", handler.GetOperation)
