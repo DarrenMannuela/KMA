@@ -37,20 +37,29 @@ func PostOrders(c *gin.Context) {
 }
 
 func UpdateOrders(c *gin.Context) {
-	id := strings.TrimPrefix(c.Param("id"), "/")
-	var updateOrder dto.Items
+	id := getID(c)
+	var existing dto.Orders
 	db := Connect()
 
-	if err := c.ShouldBindBodyWithJSON(&updateOrder); err != nil {
+	// Find existing record first
+	if err := db.Where("id = ?", id).First(&existing).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
+		return
+	}
+
+	// Bind update fields
+	var body dto.Orders
+	if err := c.ShouldBindBodyWithJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
+		return
 	}
 
-	if err := db.First(&updateOrder, id); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Supplier not found"})
+	body.Id = existing.Id // keep original ID
+	if err := db.Save(&body).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
-	db.Save(&updateOrder)
-	c.JSON(http.StatusOK, updateOrder)
-
+	c.JSON(http.StatusOK, body)
 }
 
 func DeleteOrders(c *gin.Context) {

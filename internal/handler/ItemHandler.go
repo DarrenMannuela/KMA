@@ -21,6 +21,18 @@ func GetItems(c *gin.Context) {
 
 }
 
+func GetItemsByOrder(c *gin.Context) {
+	id := c.Query("order_id")
+	var items []dto.Items
+	db := Connect()
+	result := db.Where("order_id = ?", id).Find(&items)
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		return
+	}
+	c.JSON(200, items)
+}
+
 func PostItems(c *gin.Context) {
 	var newItems dto.Items
 	db := Connect()
