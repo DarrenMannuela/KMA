@@ -21,17 +21,31 @@ func GetOrders(c *gin.Context) {
 
 }
 
+func GetOrderByID(c *gin.Context) {
+	id := getID(c)
+	var order dto.Orders
+	db := Connect()
+
+	if err := db.Where("id = ?", id).First(&order).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
+		return
+	}
+	c.JSON(http.StatusOK, order)
+}
+
 func PostOrders(c *gin.Context) {
 	var newOrder dto.Orders
 	db := Connect()
 
 	if err := c.ShouldBindBodyWithJSON(&newOrder); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
+		return
 	}
 
 	results := db.Create(&newOrder)
 	if results.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database insert failed"})
+		return
 	}
 	c.JSON(201, newOrder)
 }
@@ -70,10 +84,12 @@ func DeleteOrders(c *gin.Context) {
 
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Delete failed"})
+		return
 	}
 
 	if result.RowsAffected == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Production not found"})
+		return
 	}
 
 	c.Status(http.StatusNoContent)

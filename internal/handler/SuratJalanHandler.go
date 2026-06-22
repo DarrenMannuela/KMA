@@ -64,7 +64,7 @@ func DeleteSuratJalan(c *gin.Context) {
 	}
 
 	if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Production not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Surat Jalan not found"})
 	}
 
 	c.Status(http.StatusNoContent)

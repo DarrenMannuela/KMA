@@ -59,14 +59,14 @@ func UpdateItems(c *gin.Context) {
 	}
 
 	if err := db.First(&updateItems, id); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Supplier not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Item not found"})
 	}
 	db.Save(&updateItems)
 	c.JSON(http.StatusOK, updateItems)
 }
 
 func DeleteItems(c *gin.Context) {
-	id := strings.TrimPrefix(c.Param("id"), "/")
+	id := c.Param("id")
 	db := Connect()
 
 	result := db.Where("id = ?", id).Delete(&dto.Items{})
@@ -76,7 +76,7 @@ func DeleteItems(c *gin.Context) {
 	}
 
 	if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Production not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Item not found"})
 	}
 
 	c.Status(http.StatusNoContent)

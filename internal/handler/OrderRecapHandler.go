@@ -47,7 +47,7 @@ func UpdateOrderRecap(c *gin.Context) {
 	}
 
 	if err := db.First(&updateOrder, id); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Supplier not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Order Recap not found"})
 	}
 	db.Save(&updateOrder)
 	c.JSON(http.StatusOK, updateOrder)
@@ -64,7 +64,7 @@ func DeleteOrderRecap(c *gin.Context) {
 	}
 
 	if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Production not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Order Recap not found"})
 	}
 
 	c.Status(http.StatusNoContent)

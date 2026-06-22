@@ -40,6 +40,7 @@ func main() {
 	{
 		// Order Entry
 		v1.GET("/order", handler.GetOrders)
+		v1.GET("/order/*id", handler.GetOrderByID)
 		v1.POST("/order", handler.PostOrders)
 		v1.PATCH("/order/*id", handler.UpdateOrders)
 		v1.DELETE("/order/*id", handler.DeleteOrders)
@@ -85,8 +86,8 @@ func main() {
 		v1.GET("/item", handler.GetItems)
 		v1.GET("/item/by-order", handler.GetItemsByOrder)
 		v1.POST("/item", handler.PostItems)
-		v1.PATCH("/item/*id", handler.UpdateItems)
-		v1.DELETE("/item/*id", handler.DeleteItems)
+		v1.PATCH("/item/:id", handler.UpdateItems)
+		v1.DELETE("/item/:id", handler.DeleteItems)
 
 		// Delivery Order Entry
 		v1.GET("/delivery-order", handler.GetDeliveryOrder)

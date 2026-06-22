@@ -46,7 +46,7 @@ func UpdateOperation(c *gin.Context) {
 	}
 
 	if err := db.First(&updateOperation, id); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Supplier not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Operation not found"})
 	}
 	db.Save(&updateOperation)
 	c.JSON(http.StatusOK, updateOperation)
@@ -64,7 +64,7 @@ func DeleteOperation(c *gin.Context) {
 	}
 
 	if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Production not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Operation  not found"})
 	}
 
 	c.Status(http.StatusNoContent)

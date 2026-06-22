@@ -46,7 +46,7 @@ func UpdateProduction(c *gin.Context) {
 	}
 
 	if err := db.First(&updateProduction, id); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Supplier not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Production not found"})
 	}
 	db.Save(&updateProduction)
 	c.JSON(http.StatusOK, updateProduction)
