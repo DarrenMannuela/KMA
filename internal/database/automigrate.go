@@ -10,7 +10,7 @@ import (
 func AutoMigrate() error {
 	// Open the database file
 	// Note: GORM will create kma.sqlite automatically if it doesn't exist
-	db, err := gorm.Open(sqlite.Open("./db_data/kma.sqlite"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open("./db_data/kma.sqlite?_foreign_keys=on"), &gorm.Config{})
 	if err != nil {
 		return err
 	}
@@ -32,7 +32,7 @@ func AutoMigrate() error {
 	if err != nil {
 		return err
 	}
-	err = db.AutoMigrate(&dto.OrderRecap{})
+	err = db.AutoMigrate(&dto.Invoice{})
 	if err != nil {
 		return err
 	}
@@ -41,6 +41,14 @@ func AutoMigrate() error {
 		return err
 	}
 	err = db.AutoMigrate(&dto.Delivery{})
+	if err != nil {
+		return err
+	}
+	err = db.AutoMigrate(&dto.DeliveryOrder{})
+	if err != nil {
+		return err
+	}
+	err = db.AutoMigrate(&dto.SuratJalan{})
 	if err != nil {
 		return err
 	}

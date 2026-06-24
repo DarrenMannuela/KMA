@@ -71,10 +71,11 @@ func main() {
 		v1.DELETE("/operation/*id", handler.DeleteOperation)
 
 		// Order-Recap Entry
-		v1.GET("/order-recap", handler.GetOrderRecap)
-		v1.POST("/order-recap", handler.PostOrderRecap)
-		v1.PATCH("/order-recap/*id", handler.UpdateOrderRecap)
-		v1.DELETE("/order-recap/*id", handler.DeleteOrderRecap)
+		v1.GET("/invoice", handler.GetInvoice)
+		v1.GET("/invoice/*id", handler.GetInvoiceByID)
+		v1.POST("/invoice", handler.PostInvoice)
+		v1.PATCH("/invoice/*id", handler.UpdateInvoice)
+		v1.DELETE("/invoice/*id", handler.DeleteInvoice)
 
 		// Surat Jalan Entry
 		v1.GET("/surat-jalan", handler.GetSuratJalan)
