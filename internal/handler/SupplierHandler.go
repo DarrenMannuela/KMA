@@ -15,10 +15,10 @@ func GetSupplier(c *gin.Context) {
 
 	results := db.Find(&suppliers)
 	if results.Error != nil {
-		c.JSON(500, gin.H{"error": results.Error.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": results.Error.Error()})
+		return
 	}
-	c.JSON(200, suppliers)
-
+	c.JSON(http.StatusOK, suppliers)
 }
 
 func PostSupplier(c *gin.Context) {
@@ -27,12 +27,12 @@ func PostSupplier(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&supplier); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON: " + err.Error()})
+		return
 	}
 
-	results := db.Create(&supplier)
-
-	if results.Error != nil {
+	if err := db.Create(&supplier).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database insert failed"})
+		return
 	}
 
 	c.JSON(http.StatusCreated, supplier)
@@ -41,39 +41,44 @@ func PostSupplier(c *gin.Context) {
 func GetSupplierByID(c *gin.Context) {
 	id := strings.TrimPrefix(c.Param("id"), "/")
 	var supplier dto.Supplier
-
 	db := Connect()
 
-	result := db.First(&supplier, id)
-	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+	if err := db.First(&supplier, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Supplier not found"})
+			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 
 	c.JSON(http.StatusOK, supplier)
-
 }
 
+// UpdateSupplier is a PATCH: loads the existing row, then merges only the
+// fields present in the request body onto it, so a partial edit doesn't
+// blank out fields the client didn't send.
 func UpdateSupplier(c *gin.Context) {
 	id := strings.TrimPrefix(c.Param("id"), "/")
 	var supplier dto.Supplier
-
 	db := Connect()
-	// Check if it exists first
+
 	if err := db.First(&supplier, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Supplier not found"})
+		return
 	}
 
-	// Bind new data
 	if err := c.ShouldBindJSON(&supplier); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
+		return
 	}
 
-	db.Save(&supplier)
-	c.JSON(http.StatusOK, supplier)
+	if err := db.Save(&supplier).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Update failed"})
+		return
+	}
 
+	c.JSON(http.StatusOK, supplier)
 }
 
 func DeleteSupplier(c *gin.Context) {
@@ -81,13 +86,14 @@ func DeleteSupplier(c *gin.Context) {
 	db := Connect()
 
 	result := db.Delete(&dto.Supplier{}, id)
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Delete failed"})
+		return
+	}
 
 	if result.RowsAffected == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Supplier not found"})
-	}
-
-	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Delete failed"})
+		return
 	}
 
 	c.Status(http.StatusNoContent)

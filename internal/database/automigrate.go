@@ -44,11 +44,7 @@ func AutoMigrate() error {
 	if err != nil {
 		return err
 	}
-	err = db.AutoMigrate(&dto.DeliveryOrder{})
-	if err != nil {
-		return err
-	}
-	err = db.AutoMigrate(&dto.SuratJalan{})
+	err = db.AutoMigrate(&dto.DeliveryItem{})
 	if err != nil {
 		return err
 	}

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/DarrenMannuela/KMA/dto"
 	"github.com/gin-gonic/gin"
@@ -77,7 +76,7 @@ func UpdateOrders(c *gin.Context) {
 }
 
 func DeleteOrders(c *gin.Context) {
-	id := strings.TrimPrefix(c.Param("id"), "/")
+	id := getID(c)
 	db := Connect()
 
 	result := db.Where("id = ?", id).Delete(&dto.Orders{})

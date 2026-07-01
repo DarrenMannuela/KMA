@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/DarrenMannuela/KMA/dto"
 	"github.com/gin-gonic/gin"
@@ -50,7 +49,7 @@ func PostItems(c *gin.Context) {
 }
 
 func UpdateItems(c *gin.Context) {
-	id := strings.TrimPrefix(c.Param("id"), "/")
+	id := c.Param("id")
 	var updateItems dto.Items
 	db := Connect()
 

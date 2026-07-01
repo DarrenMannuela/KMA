@@ -77,11 +77,11 @@ func main() {
 		v1.PATCH("/invoice/*id", handler.UpdateInvoice)
 		v1.DELETE("/invoice/*id", handler.DeleteInvoice)
 
-		// Surat Jalan Entry
-		v1.GET("/surat-jalan", handler.GetSuratJalan)
-		v1.POST("/surat-jalan", handler.PostSuratJalan)
-		v1.PATCH("/surat-jalan/*id", handler.UpdateSuratJalan)
-		v1.DELETE("/surat-jalan/*id", handler.DeleteSuratJalan)
+		// // Surat Jalan Entry
+		// v1.GET("/surat-jalan", handler.GetSuratJalan)
+		// v1.POST("/surat-jalan", handler.PostSuratJalan)
+		// v1.PATCH("/surat-jalan/*id", handler.UpdateSuratJalan)
+		// v1.DELETE("/surat-jalan/*id", handler.DeleteSuratJalan)
 
 		// Item Entry
 		v1.GET("/item", handler.GetItems)
@@ -90,11 +90,17 @@ func main() {
 		v1.PATCH("/item/:id", handler.UpdateItems)
 		v1.DELETE("/item/:id", handler.DeleteItems)
 
-		// Delivery Order Entry
-		v1.GET("/delivery-order", handler.GetDeliveryOrder)
-		v1.POST("/delivery-order", handler.PostDeliveryOrder)
-		v1.PATCH("/delivery-order/*id", handler.UpdateDeliveryOrder)
-		v1.DELETE("/delivery-order/*id", handler.DeleteDeliveryOrder)
+		// // Delivery Order Entry
+		// v1.GET("/delivery-order", handler.GetDeliveryOrder)
+		// v1.POST("/delivery-order", handler.PostDeliveryOrder)
+		// v1.PATCH("/delivery-order/*id", handler.UpdateDeliveryOrder)
+		// v1.DELETE("/delivery-order/*id", handler.DeleteDeliveryOrder)
+
+		// Delivey Item Entry
+		v1.GET("/delivery-item", handler.GetDeliveryItem)
+		v1.POST("/delivery-item", handler.PostDeliveryItem)
+		v1.PATCH("/delivery-item/:id", handler.UpdateDeliveryItem)
+		v1.DELETE("/delivery-item/:id", handler.DeleteDeliveryItem)
 	}
 
 	// Start server on port 8000 to match your OpenAPI 'servers' list
