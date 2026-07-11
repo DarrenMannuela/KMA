@@ -58,17 +58,29 @@ func main() {
 		v1.PATCH("/supplier/*id", handler.UpdateSupplier)
 		v1.DELETE("/supplier/*id", handler.DeleteSupplier)
 
-		// Production Entry
-		v1.GET("/production", handler.GetProduction)
-		v1.POST("/production", handler.PostProduction)
-		v1.PATCH("/production/*id", handler.UpdateProduction)
-		v1.DELETE("/production/*id", handler.DeleteProduction)
+		// Finance Header Entry — shared parent for Production and Operation
+		// Kas Bons. Filter by type with ?type=production or ?type=operation.
+		v1.GET("/finance-header", handler.GetFinanceHeaders)
+		v1.GET("/finance-header/*id", handler.GetFinanceHeaderByID)
+		v1.POST("/finance-header", handler.PostFinanceHeader)
+		v1.PATCH("/finance-header/*id", handler.UpdateFinanceHeader)
+		v1.DELETE("/finance-header/*id", handler.DeleteFinanceHeader)
 
-		// Operation Entry
-		v1.GET("/operation", handler.GetOperation)
-		v1.POST("/operation", handler.PostOperation)
-		v1.PATCH("/operation/*id", handler.UpdateOperation)
-		v1.DELETE("/operation/*id", handler.DeleteOperation)
+		// Production Item Entry — material lines under a production header
+		v1.GET("/production-item", handler.GetProductionItems)
+		v1.GET("/production-item/by-header", handler.GetProductionItemsByHeader)
+		v1.GET("/production-item/grouped", handler.GetProductionItemsGrouped)
+		v1.POST("/production-item", handler.PostProductionItem)
+		v1.PATCH("/production-item/:id", handler.UpdateProductionItem)
+		v1.DELETE("/production-item/:id", handler.DeleteProductionItem)
+
+		// Operation Item Entry — cost lines under an operation header
+		v1.GET("/operation-item", handler.GetOperationItems)
+		v1.GET("/operation-item/by-header", handler.GetOperationItemsByHeader)
+		v1.GET("/operation-item/grouped", handler.GetOperationItemsGrouped)
+		v1.POST("/operation-item", handler.PostOperationItem)
+		v1.PATCH("/operation-item/:id", handler.UpdateOperationItem)
+		v1.DELETE("/operation-item/:id", handler.DeleteOperationItem)
 
 		// Order-Recap Entry
 		v1.GET("/invoice", handler.GetInvoice)
@@ -77,24 +89,12 @@ func main() {
 		v1.PATCH("/invoice/*id", handler.UpdateInvoice)
 		v1.DELETE("/invoice/*id", handler.DeleteInvoice)
 
-		// // Surat Jalan Entry
-		// v1.GET("/surat-jalan", handler.GetSuratJalan)
-		// v1.POST("/surat-jalan", handler.PostSuratJalan)
-		// v1.PATCH("/surat-jalan/*id", handler.UpdateSuratJalan)
-		// v1.DELETE("/surat-jalan/*id", handler.DeleteSuratJalan)
-
 		// Item Entry
 		v1.GET("/item", handler.GetItems)
 		v1.GET("/item/by-order", handler.GetItemsByOrder)
 		v1.POST("/item", handler.PostItems)
 		v1.PATCH("/item/:id", handler.UpdateItems)
 		v1.DELETE("/item/:id", handler.DeleteItems)
-
-		// // Delivery Order Entry
-		// v1.GET("/delivery-order", handler.GetDeliveryOrder)
-		// v1.POST("/delivery-order", handler.PostDeliveryOrder)
-		// v1.PATCH("/delivery-order/*id", handler.UpdateDeliveryOrder)
-		// v1.DELETE("/delivery-order/*id", handler.DeleteDeliveryOrder)
 
 		// Delivey Item Entry
 		v1.GET("/delivery-item", handler.GetDeliveryItem)

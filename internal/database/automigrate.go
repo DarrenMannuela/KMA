@@ -20,11 +20,15 @@ func AutoMigrate() error {
 	if err != nil {
 		return err
 	}
-	err = db.AutoMigrate(&dto.Operations{})
+	err = db.AutoMigrate(&dto.FinanceHeader{})
 	if err != nil {
 		return err
 	}
-	err = db.AutoMigrate(&dto.Production{})
+	err = db.AutoMigrate(&dto.OperationItem{})
+	if err != nil {
+		return err
+	}
+	err = db.AutoMigrate(&dto.ProductionItem{})
 	if err != nil {
 		return err
 	}
