@@ -7,5 +7,7 @@ type ProductionItem struct {
 	Price        int64         `json:"price"`
 	SiUnit       string        `json:"si_unit"`
 	Amount       int           `json:"amount"`
+	SupplierId   int           `json:"supplier_id"`
 	Header       FinanceHeader `json:"-" gorm:"foreignKey:HeaderId;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	Supplier     Supplier      `json:"-" gorm:"foreignKey:SupplierId"`
 }
