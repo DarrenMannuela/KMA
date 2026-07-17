@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/DarrenMannuela/KMA/dto"
@@ -60,19 +61,67 @@ func UpdateOrders(c *gin.Context) {
 		return
 	}
 
-	// Bind update fields
+	// raw lets us tell "the client sent this field" apart from "the
+	// client sent this field as empty/zero" — a PATCH that only contains
+	// {"id": "003/KMA/26"} must leave company/po_number/date untouched,
+	// not null them out. ShouldBindBodyWithJSON caches the raw body, so
+	// binding it twice (once into a map, once into the typed struct
+	// below) is safe.
+	var raw map[string]json.RawMessage
+	if err := c.ShouldBindBodyWithJSON(&raw); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
+		return
+	}
+
 	var body dto.Orders
 	if err := c.ShouldBindBodyWithJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
 		return
 	}
 
-	body.Id = existing.Id // keep original ID
-	if err := db.Save(&body).Error; err != nil {
+	newId := existing.Id
+	if _, ok := raw["id"]; ok && body.Id != "" {
+		newId = body.Id
+	}
+
+	// If the id IS changing, make sure it doesn't collide with another
+	// order first — Items/Invoice have ON UPDATE CASCADE FKs, but that
+	// only helps propagate a rename; it won't stop two orders from
+	// colliding on the same id.
+	if newId != existing.Id {
+		var conflict dto.Orders
+		if err := db.Where("id = ?", newId).First(&conflict).Error; err == nil {
+			c.JSON(http.StatusConflict, gin.H{"error": "An order with this ID already exists"})
+			return
+		}
+	}
+
+	// Only include a column if the client's JSON actually contained that
+	// key — everything else keeps its existing value.
+	updates := map[string]interface{}{"id": newId}
+	if _, ok := raw["company"]; ok {
+		updates["company"] = body.Company
+	}
+	if _, ok := raw["po_number"]; ok {
+		updates["po_number"] = body.PoNumber
+	}
+	if _, ok := raw["date"]; ok {
+		updates["date"] = body.Date
+	}
+
+	// Anchored to the OLD id so this is a real
+	// "UPDATE orders SET id = new WHERE id = old" statement — required
+	// both to hit the right row and to trigger ON UPDATE CASCADE.
+	if err := db.Model(&dto.Orders{}).Where("id = ?", existing.Id).Updates(updates).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, body)
+
+	// Return the actual merged record, not just whatever partial fields
+	// the client happened to send.
+	var updated dto.Orders
+	db.Where("id = ?", newId).First(&updated)
+	c.JSON(http.StatusOK, updated)
 }
 
 func DeleteOrders(c *gin.Context) {
