@@ -47,6 +47,7 @@ func main() {
 
 		// Delivery Entry
 		v1.GET("/delivery", handler.GetDelivery)
+		v1.GET("/delivery/*id", handler.GetDeliveryByID)
 		v1.POST("/delivery", handler.PostDelivery)
 		v1.PATCH("/delivery/*id", handler.UpdateDelivery)
 		v1.DELETE("/delivery/*id", handler.DeleteDelivery)
