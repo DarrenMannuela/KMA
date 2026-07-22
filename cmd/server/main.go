@@ -30,6 +30,11 @@ func main() {
 	// Make sure your file is actually at ./api/openapi.yaml
 	r.StaticFile("/docs/kma.yaml", "api/kma.yaml")
 
+	// Serve uploaded photos (e.g. /uploads/client-items/42.jpg) — files
+	// land on disk under ./uploads via ClientItemHandler.go's
+	// UploadClientItemPhoto; this just makes that directory browsable.
+	r.Static("/uploads", "./uploads")
+
 	// 2. Swagger UI Route
 	// This points the browser UI to the YAML file served above
 	url := ginSwagger.URL("http://localhost:8000/docs/kma.yaml")
@@ -102,6 +107,45 @@ func main() {
 		v1.POST("/delivery-item", handler.PostDeliveryItem)
 		v1.PATCH("/delivery-item/:id", handler.UpdateDeliveryItem)
 		v1.DELETE("/delivery-item/:id", handler.DeleteDeliveryItem)
+
+		// Client Entry — the company; Orders/Deliveries optionally link
+		// to one via client_id (see Orders.go), but stay free-text-able.
+		v1.GET("/client", handler.GetClients)
+		v1.GET("/client/:id", handler.GetClientByID)
+		v1.POST("/client", handler.PostClient)
+		v1.PATCH("/client/:id", handler.UpdateClient)
+		v1.DELETE("/client/:id", handler.DeleteClient)
+
+		// Client Contact Entry — one-to-many POCs under a client, for
+		// clients with multiple locations/departments.
+		v1.GET("/client-contact", handler.GetClientContacts)
+		v1.GET("/client-contact/by-client", handler.GetClientContactsByClient)
+		v1.GET("/client-contact/:id", handler.GetClientContactByID)
+		v1.POST("/client-contact", handler.PostClientContact)
+		v1.PATCH("/client-contact/:id", handler.UpdateClientContact)
+		v1.DELETE("/client-contact/:id", handler.DeleteClientContact)
+
+		// Client Item Entry — each client's catalogue is fully
+		// independent (no shared master price list).
+		v1.GET("/client-item", handler.GetClientItems)
+		v1.GET("/client-item/by-client", handler.GetClientItemsByClient)
+		v1.GET("/client-item/:id", handler.GetClientItemByID)
+		v1.POST("/client-item", handler.PostClientItem)
+		v1.PATCH("/client-item/:id", handler.UpdateClientItem)
+		v1.DELETE("/client-item/:id", handler.DeleteClientItem)
+		v1.POST("/client-item/:id/photo", handler.UploadClientItemPhoto)
+		v1.DELETE("/client-item/:id/photo", handler.DeleteClientItemPhoto)
+
+		// Client Item Price Entry — one row per (client_item, year),
+		// giving full year-by-year price history. /grouped returns
+		// { [client_item_id]: Price[] } so the catalogue page can load
+		// every item's full history in one request.
+		v1.GET("/client-item-price", handler.GetClientItemPrices)
+		v1.GET("/client-item-price/by-item", handler.GetClientItemPricesByItem)
+		v1.GET("/client-item-price/grouped", handler.GetClientItemPricesGrouped)
+		v1.POST("/client-item-price", handler.PostClientItemPrice)
+		v1.PATCH("/client-item-price/:id", handler.UpdateClientItemPrice)
+		v1.DELETE("/client-item-price/:id", handler.DeleteClientItemPrice)
 	}
 
 	// Start server on port 8000 to match your OpenAPI 'servers' list

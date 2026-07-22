@@ -108,6 +108,12 @@ func UpdateOrders(c *gin.Context) {
 	if _, ok := raw["date"]; ok {
 		updates["date"] = body.Date
 	}
+	if _, ok := raw["client_id"]; ok {
+		updates["client_id"] = body.ClientId
+	}
+	if _, ok := raw["client_contact_id"]; ok {
+		updates["client_contact_id"] = body.ClientContactId
+	}
 
 	// Anchored to the OLD id so this is a real
 	// "UPDATE orders SET id = new WHERE id = old" statement — required

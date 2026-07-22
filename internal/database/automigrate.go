@@ -32,6 +32,25 @@ func AutoMigrate() error {
 	if err != nil {
 		return err
 	}
+	// Client + ClientContact + ClientItem + ClientItemPrice must migrate
+	// before Orders — Orders now carries optional client_id/
+	// client_contact_id FKs (see Orders.go) that reference these tables.
+	err = db.AutoMigrate(&dto.Client{})
+	if err != nil {
+		return err
+	}
+	err = db.AutoMigrate(&dto.ClientContact{})
+	if err != nil {
+		return err
+	}
+	err = db.AutoMigrate(&dto.ClientItem{})
+	if err != nil {
+		return err
+	}
+	err = db.AutoMigrate(&dto.ClientItemPrice{})
+	if err != nil {
+		return err
+	}
 	err = db.AutoMigrate(&dto.Orders{})
 	if err != nil {
 		return err
