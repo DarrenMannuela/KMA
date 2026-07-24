@@ -147,7 +147,7 @@ var allowedPhotoExt = map[string]bool{
 	".jpg":  true,
 	".jpeg": true,
 	".png":  true,
-	".webp": true,
+	".pdf":  true,
 }
 
 // UploadClientItemPhoto saves a product photo for one catalogue item to
@@ -181,7 +181,7 @@ func UploadClientItemPhoto(c *gin.Context) {
 
 	ext := strings.ToLower(filepath.Ext(file.Filename))
 	if !allowedPhotoExt[ext] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported file type — use jpg, png, or webp"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported file type — use jpg, png, or pdf"})
 		return
 	}
 
