@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/DarrenMannuela/KMA/dto"
 	"github.com/gin-gonic/gin"
@@ -126,7 +128,7 @@ func DeleteClientItem(c *gin.Context) {
 
 	var existing dto.ClientItem
 	if err := db.First(&existing, id).Error; err == nil && existing.PhotoPath != nil {
-		os.Remove("." + *existing.PhotoPath)
+		os.Remove(photoFilePath(*existing.PhotoPath))
 	}
 
 	result := db.Where("id = ?", id).Delete(&dto.ClientItem{})
@@ -147,7 +149,19 @@ var allowedPhotoExt = map[string]bool{
 	".jpg":  true,
 	".jpeg": true,
 	".png":  true,
-	".pdf":  true,
+}
+
+// photoFilePath turns a stored PhotoPath (e.g.
+// "/uploads/client-items/5.png?v=1721800000000") back into a real
+// filesystem path relative to the working directory. The ?v= suffix only
+// exists to bust browser image caching on the frontend — it's meaningless
+// to the filesystem, so every os.Remove/comparison against an existing
+// PhotoPath needs to go through this first instead of a bare "."+PhotoPath.
+func photoFilePath(photoPath string) string {
+	if u, err := url.Parse(photoPath); err == nil {
+		return "." + u.Path
+	}
+	return "." + photoPath
 }
 
 // UploadClientItemPhoto saves a product photo for one catalogue item to
@@ -181,7 +195,7 @@ func UploadClientItemPhoto(c *gin.Context) {
 
 	ext := strings.ToLower(filepath.Ext(file.Filename))
 	if !allowedPhotoExt[ext] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported file type — use jpg, png, or pdf"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported file type — use jpg, jpeg, or png"})
 		return
 	}
 
@@ -197,7 +211,7 @@ func UploadClientItemPhoto(c *gin.Context) {
 	// (e.g. swapping a .png for a .jpg), remove the stale file so it
 	// doesn't linger unreferenced on disk.
 	if existing.PhotoPath != nil {
-		oldFullPath := "." + *existing.PhotoPath
+		oldFullPath := photoFilePath(*existing.PhotoPath)
 		if oldFullPath != fullPath {
 			os.Remove(oldFullPath)
 		}
@@ -208,7 +222,11 @@ func UploadClientItemPhoto(c *gin.Context) {
 		return
 	}
 
-	photoPath := "/uploads/client-items/" + filename
+	// ?v=<timestamp> busts the browser's image cache on replace — same
+	// filename every time (keyed on item id), so without a changing query
+	// string the <img> tag keeps showing the old cached photo even though
+	// the file on disk was genuinely overwritten.
+	photoPath := fmt.Sprintf("/uploads/client-items/%s?v=%d", filename, time.Now().UnixMilli())
 	if err := db.Model(&existing).Update("photo_path", photoPath).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -233,7 +251,7 @@ func DeleteClientItemPhoto(c *gin.Context) {
 	}
 
 	if existing.PhotoPath != nil {
-		os.Remove("." + *existing.PhotoPath)
+		os.Remove(photoFilePath(*existing.PhotoPath))
 	}
 
 	// Map-based Updates (not struct-based) so a nil value is actually
