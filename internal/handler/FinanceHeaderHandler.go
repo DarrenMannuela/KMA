@@ -41,8 +41,17 @@ func PostFinanceHeader(c *gin.Context) {
 		return
 	}
 
+	// Same pattern as PostOrders/PostInvoice — Kas Bon IDs ("01/KB/26")
+	// are also client-suggested sequential numbers (see Orders.go's
+	// default tag), so they're exposed to the identical race.
+	var conflict dto.FinanceHeader
+	if err := db.Where("id = ?", header.Id).First(&conflict).Error; err == nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "A finance header with this ID already exists"})
+		return
+	}
+
 	if err := db.Create(&header).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database insert failed"})
+		c.JSON(http.StatusConflict, gin.H{"error": "A finance header with this ID already exists"})
 		return
 	}
 

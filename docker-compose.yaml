@@ -31,6 +31,30 @@ services:
     networks:
       - kma_network
 
+  backup:
+    image: alpine:latest
+    container_name: kma_backup
+    restart: unless-stopped
+    # Read-only mount for the source DB — this container only ever backs
+    # up, it should never be able to write into db_data even by accident.
+    volumes:
+      - ./db_data:/db:ro
+      - ./backups:/backups
+      - ./backup/backup.sh:/backup.sh:ro
+      - ./backup/crontab:/etc/crontabs/root:ro
+    environment:
+      # Override to change how many days of backups to keep, e.g.
+      # BACKUP_RETENTION_DAYS=90 for ~3 months.
+      BACKUP_RETENTION_DAYS: "30"
+    command: >
+      /bin/sh -c "
+      apk add --no-cache sqlite dcron &&
+      chmod +x /backup.sh &&
+      /backup.sh &&
+      crond -f -l 2"
+    networks:
+      - kma_network
+
 networks:
   kma_network:
     name: kma_network

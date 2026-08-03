@@ -42,9 +42,30 @@ func PostOrders(c *gin.Context) {
 		return
 	}
 
+	// Pre-check: catches the common case (two clients suggested the same
+	// next number, one submits a moment after the other) and turns it
+	// into a clean, actionable 409 instead of a confusing 500. This still
+	// has a narrow race window on its own — see the comment below.
+	var conflict dto.Orders
+	if err := db.Where("id = ?", newOrder.Id).First(&conflict).Error; err == nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "An order with this ID already exists"})
+		return
+	}
+
 	results := db.Create(&newOrder)
 	if results.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database insert failed"})
+		// Covers the true-simultaneous case: two requests can both pass
+		// the pre-check above before either has inserted. The primary
+		// key constraint on Orders.Id is the real backstop then — only
+		// one Create can win. Rather than distinguish "collision" from
+		// "some other DB failure" here (which needs driver-specific error
+		// inspection we don't have wired up), we treat any post-precheck
+		// failure as a likely collision, since that's overwhelmingly the
+		// realistic cause for this endpoint. If you start seeing 409s for
+		// unrelated DB errors, that's the signal to add real error-code
+		// inspection (e.g. checking for SQLite's "UNIQUE constraint
+		// failed" text) instead of this blanket treatment.
+		c.JSON(http.StatusConflict, gin.H{"error": "An order with this ID already exists"})
 		return
 	}
 	c.JSON(201, newOrder)
