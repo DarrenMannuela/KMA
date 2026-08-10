@@ -15,6 +15,7 @@ func GetDeliveryItem(c *gin.Context) {
 
 	if results.Error != nil {
 		c.JSON(500, gin.H{"error": results.Error.Error()})
+		return
 	}
 
 	c.JSON(200, itemOrders)
@@ -52,11 +53,20 @@ func UpdateDeliveryItem(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Item Order not found"})
 		return
 	}
+	originalId := existing.Id
 
 	if err := c.ShouldBindBodyWithJSON(&existing); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
 		return
 	}
+	// If the request body included an "id", binding would've overwritten
+	// existing.Id with it, and Save() below builds its WHERE clause off
+	// whatever's in the struct — so a stray/stale id in the payload would
+	// silently update zero rows instead of this one (same bug fixed in
+	// UpdateDelivery/UpdateFinanceHeader). This id is an auto-increment
+	// PK that was never meant to be client-set, so we just pin it back
+	// rather than supporting a rename here.
+	existing.Id = originalId
 
 	if result := db.Save(&existing); result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Update failed"})

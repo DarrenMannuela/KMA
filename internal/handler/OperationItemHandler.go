@@ -91,11 +91,16 @@ func UpdateOperationItem(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Operation item not found"})
 		return
 	}
+	originalId := existing.Id
 
 	if err := c.ShouldBindBodyWithJSON(&existing); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
 		return
 	}
+	// Pin the PK back after binding — see UpdateDeliveryItem for why:
+	// a client-sent "id" would otherwise redirect Save()'s WHERE clause
+	// and silently no-op instead of updating this row.
+	existing.Id = originalId
 
 	if err := db.Save(&existing).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Update failed"})

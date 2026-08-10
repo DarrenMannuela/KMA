@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/DarrenMannuela/KMA/dto"
@@ -68,17 +69,55 @@ func UpdateFinanceHeader(c *gin.Context) {
 		return
 	}
 
-	if err := c.ShouldBindBodyWithJSON(&existing); err != nil {
+	// BUG FIX: same issue as UpdateDelivery — binding the body straight
+	// onto `existing` then calling Save() meant a client-supplied "id"
+	// change silently updated ZERO rows (Save() built its WHERE clause
+	// off the NEW id already sitting in the struct), while still
+	// returning 200 OK. Rewritten to precheck the new id and update
+	// anchored to the OLD id, same as UpdateOrders/UpdateDelivery.
+	var raw map[string]json.RawMessage
+	if err := c.ShouldBindBodyWithJSON(&raw); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
 		return
 	}
 
-	if err := db.Save(&existing).Error; err != nil {
+	var body dto.FinanceHeader
+	if err := c.ShouldBindBodyWithJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
+		return
+	}
+
+	newId := existing.Id
+	if _, ok := raw["id"]; ok && body.Id != "" {
+		newId = body.Id
+	}
+	if newId != existing.Id {
+		var conflict dto.FinanceHeader
+		if err := db.Where("id = ?", newId).First(&conflict).Error; err == nil {
+			c.JSON(http.StatusConflict, gin.H{"error": "A finance header with this ID already exists"})
+			return
+		}
+	}
+
+	updates := map[string]interface{}{"id": newId}
+	if _, ok := raw["date"]; ok {
+		updates["date"] = body.Date
+	}
+	if _, ok := raw["description"]; ok {
+		updates["description"] = body.Description
+	}
+
+	// Anchored to the OLD id so production_item/operation_item rows (FK'd
+	// on header_id) follow via ON UPDATE CASCADE, and so this actually
+	// hits the right row regardless of whether id changed.
+	if err := db.Model(&dto.FinanceHeader{}).Where("id = ?", existing.Id).Updates(updates).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Update failed"})
 		return
 	}
 
-	c.JSON(http.StatusOK, existing)
+	var updated dto.FinanceHeader
+	db.Where("id = ?", newId).First(&updated)
+	c.JSON(http.StatusOK, updated)
 }
 
 func DeleteFinanceHeader(c *gin.Context) {

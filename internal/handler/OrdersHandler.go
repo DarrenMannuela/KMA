@@ -15,6 +15,7 @@ func GetOrders(c *gin.Context) {
 	results := db.Find(&orders)
 	if results.Error != nil {
 		c.JSON(500, gin.H{"error": results.Error.Error()})
+		return
 	}
 
 	c.JSON(200, orders)
@@ -163,7 +164,7 @@ func DeleteOrders(c *gin.Context) {
 	}
 
 	if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Production not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
 		return
 	}
 

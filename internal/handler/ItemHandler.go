@@ -17,6 +17,7 @@ func GetItems(c *gin.Context) {
 	results := db.Find(&items)
 	if results.Error != nil {
 		c.JSON(500, gin.H{"error": results.Error.Error()})
+		return
 	}
 
 	c.JSON(200, items)
@@ -135,6 +136,47 @@ func UpdateItems(c *gin.Context) {
 		updates["sub_total"] = body.SubTotal
 	}
 
+	// PostItems' upsert only merges duplicates on CREATE. A PATCH here goes
+	// straight at the row by PK, so editing name/size/price into a value
+	// that matches ANOTHER existing item on the same order would otherwise
+	// hit the idx_items_dedupe unique index and bubble up as a raw
+	// "Updates(...).Error" 500 below. Precheck it the same way PostOrders
+	// prechecks id collisions, and give a clean, actionable 409 instead.
+	// Only worth the extra query when a dedupe-relevant field is actually
+	// part of this patch — untouched-field patches (e.g. just `amount`)
+	// can't create a new collision.
+	_, orderIdChanging := raw["order_id"]
+	_, itemNameChanging := raw["item_name"]
+	_, sizeChanging := raw["size"]
+	_, priceChanging := raw["price"]
+
+	if orderIdChanging || itemNameChanging || sizeChanging || priceChanging {
+		resultOrderId := existing.OrderId
+		if orderIdChanging {
+			resultOrderId = body.OrderId
+		}
+		resultItemName := existing.ItemName
+		if itemNameChanging {
+			resultItemName = body.ItemName
+		}
+		resultSize := existing.Size
+		if sizeChanging {
+			resultSize = body.Size
+		}
+		resultPrice := existing.Price
+		if priceChanging {
+			resultPrice = body.Price
+		}
+
+		dupe := findExactItem(db, resultOrderId, resultItemName, resultSize, resultPrice)
+		if dupe.Id != 0 && dupe.Id != existing.Id {
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "An item with this name, size, and price already exists on this order — adjust the quantity on that row instead of creating a duplicate",
+			})
+			return
+		}
+	}
+
 	if len(updates) > 0 {
 		// db.Model(&existing) anchors the WHERE clause to existing's
 		// primary key (Id), which we never mutated — so this always
@@ -158,10 +200,12 @@ func DeleteItems(c *gin.Context) {
 
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Delete failed"})
+		return
 	}
 
 	if result.RowsAffected == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Item not found"})
+		return
 	}
 
 	c.Status(http.StatusNoContent)
