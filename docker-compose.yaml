@@ -22,12 +22,18 @@ services:
       dockerfile: Dockerfile
     container_name: kma_backend
     restart: unless-stopped
-    ports:
-      - "8000:8000"
+    # NOT published to the host — nginx reaches this container over
+    # the internal kma_network via its container name, so the browser
+    # never talks to :8000 directly (same reasoning as the auth
+    # service's compose file). Uncomment only for local debugging.
+    # ports:
+    #   - "8000:8000"
     volumes:
       - ./db_data:/app/db_data
     depends_on:
       - sqlite-db
+    env_file:
+      - ./.env
     networks:
       - kma_network
 

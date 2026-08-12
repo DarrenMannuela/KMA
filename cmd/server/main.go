@@ -2,9 +2,11 @@ package main
 
 import (
 	"log"
+	"net/http"
 
 	"github.com/DarrenMannuela/KMA/internal/database"
 	"github.com/DarrenMannuela/KMA/internal/handler"
+	mw "github.com/DarrenMannuela/KMA/internal/middleware"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -32,16 +34,37 @@ func main() {
 
 	// Serve uploaded photos (e.g. /uploads/client-items/42.jpg) — files
 	// land on disk under ./uploads via ClientItemHandler.go's
-	// UploadClientItemPhoto; this just makes that directory browsable.
-	r.Static("/uploads", "./uploads")
+	// UploadClientItemPhoto. Gated by RequireAuth same as the API
+	// itself: these are client-confidential catalogue photos, not
+	// public assets, so an unauthenticated request shouldn't be able
+	// to browse or fetch them just by guessing a filename.
+	uploads := r.Group("/uploads")
+	uploads.Use(mw.RequireAuth())
+	uploads.Static("/", "./uploads")
 
 	// 2. Swagger UI Route
 	// This points the browser UI to the YAML file served above
 	url := ginSwagger.URL("http://localhost:8000/docs/kma.yaml")
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, url))
 
+	// Deliberately outside the v1 group below (and its RequireAuth
+	// middleware) — this needs to answer "is the backend process up"
+	// on its own, without depending on the caller having a valid
+	// session. Mixing those two questions is exactly what caused
+	// Topbar's health badge to read "offline" when it actually just
+	// meant "not logged in".
+	r.GET("/api/v1/healthz", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
 	// 3. API V1 Routes Group
+	// RequireAuth is the actual security boundary here — it validates
+	// the caller's session against the auth service before any
+	// request reaches a handler. Without this, anyone who can reach
+	// this port (or route through nginx) could call these endpoints
+	// directly, without ever going through the frontend login.
 	v1 := r.Group("/api/v1")
+	v1.Use(mw.RequireAuth())
 	{
 		// Order Entry
 		v1.GET("/order", handler.GetOrders)
