@@ -1,4 +1,8 @@
 /db_data
+/backups
 .env
 .env.*
 !.env.example
+
+# OS noise (you're on macOS)
+.DS_Store
