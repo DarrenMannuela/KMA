@@ -91,6 +91,16 @@ func PostClientItemPrice(c *gin.Context) {
 	c.JSON(201, final)
 }
 
+// BUG FIX: this PATCH goes straight at the row by PK, unlike PostClientItemPrice's
+// upsert which only merges duplicates on CREATE. Editing Year (or Item) into a
+// value that matches ANOTHER existing price row for the same client_item_id
+// would otherwise hit the idx_client_item_prices_dedupe unique index and
+// bubble up as a raw "Updates(...).Error" 500 below — same failure mode
+// ItemHandler.go's UpdateItems already fixed for idx_items_dedupe. Precheck
+// it the same way, and return a clean, actionable 409 instead. Only worth the
+// extra query when a dedupe-relevant field (client_item_id or year) is
+// actually part of this patch — untouched-field patches (e.g. just `price`)
+// can't create a new collision.
 func UpdateClientItemPrice(c *gin.Context) {
 	id := c.Param("id")
 	db := Connect()
@@ -125,6 +135,29 @@ func UpdateClientItemPrice(c *gin.Context) {
 	}
 	if _, ok := raw["effective_date"]; ok {
 		updates["effective_date"] = body.EffectiveDate
+	}
+
+	_, itemChanging := raw["client_item_id"]
+	_, yearChanging := raw["year"]
+
+	if itemChanging || yearChanging {
+		resultItemId := existing.ClientItemId
+		if itemChanging {
+			resultItemId = body.ClientItemId
+		}
+		resultYear := existing.Year
+		if yearChanging {
+			resultYear = body.Year
+		}
+
+		var dupe dto.ClientItemPrice
+		err := db.Where("client_item_id = ? AND year = ? AND id != ?", resultItemId, resultYear, existing.Id).First(&dupe).Error
+		if err == nil {
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "This item already has a price recorded for that year — edit that row instead of creating a duplicate",
+			})
+			return
+		}
 	}
 
 	if len(updates) > 0 {

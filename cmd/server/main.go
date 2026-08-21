@@ -121,6 +121,7 @@ func main() {
 		// Item Entry
 		v1.GET("/item", handler.GetItems)
 		v1.GET("/item/by-order", handler.GetItemsByOrder)
+		v1.GET("/item/:id", handler.GetItemByID)
 		v1.POST("/item", handler.PostItems)
 		v1.PATCH("/item/:id", handler.UpdateItems)
 		v1.DELETE("/item/:id", handler.DeleteItems)

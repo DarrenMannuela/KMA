@@ -24,6 +24,24 @@ func GetItems(c *gin.Context) {
 
 }
 
+// GetItemByID fetches a single line item by its (numeric, auto-increment)
+// PK. Every other entity in this API already has this single-record GET —
+// Items was the one gap: no handler existed, and main.go had no route for
+// it. itemsApi.get(id)/itemHooks.useGet(id) on the frontend call this via
+// the generic crud() factory, same as every other entity, so without this
+// that call would 404 the moment anything actually used it.
+func GetItemByID(c *gin.Context) {
+	id := c.Param("id")
+	var item dto.Items
+	db := Connect()
+
+	if err := db.First(&item, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Item not found"})
+		return
+	}
+	c.JSON(http.StatusOK, item)
+}
+
 func GetItemsByOrder(c *gin.Context) {
 	id := c.Query("order_id")
 	var items []dto.Items
