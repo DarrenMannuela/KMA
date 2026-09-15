@@ -118,7 +118,10 @@ func UpdateClientItem(c *gin.Context) {
 	}
 
 	var updated dto.ClientItem
-	db.First(&updated, id)
+	if err := db.First(&updated, id).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "update saved but the record could not be reloaded"})
+		return
+	}
 	c.JSON(http.StatusOK, updated)
 }
 
@@ -233,7 +236,10 @@ func UploadClientItemPhoto(c *gin.Context) {
 	}
 
 	var updated dto.ClientItem
-	db.First(&updated, id)
+	if err := db.First(&updated, id).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "photo saved but the record could not be reloaded"})
+		return
+	}
 	c.JSON(http.StatusOK, updated)
 }
 
@@ -262,6 +268,9 @@ func DeleteClientItemPhoto(c *gin.Context) {
 	}
 
 	var updated dto.ClientItem
-	db.First(&updated, id)
+	if err := db.First(&updated, id).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "photo removed but the record could not be reloaded"})
+		return
+	}
 	c.JSON(http.StatusOK, updated)
 }

@@ -148,7 +148,10 @@ func UpdateOrders(c *gin.Context) {
 	// Return the actual merged record, not just whatever partial fields
 	// the client happened to send.
 	var updated dto.Orders
-	db.Where("id = ?", newId).First(&updated)
+	if err := db.Where("id = ?", newId).First(&updated).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "update saved but the record could not be reloaded"})
+		return
+	}
 	c.JSON(http.StatusOK, updated)
 }
 

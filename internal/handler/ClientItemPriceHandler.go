@@ -87,7 +87,10 @@ func PostClientItemPrice(c *gin.Context) {
 	}
 
 	var final dto.ClientItemPrice
-	db.Where("client_item_id = ? AND year = ?", newPrice.ClientItemId, newPrice.Year).First(&final)
+	if err := db.Where("client_item_id = ? AND year = ?", newPrice.ClientItemId, newPrice.Year).First(&final).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "price saved but the record could not be reloaded"})
+		return
+	}
 	c.JSON(201, final)
 }
 
@@ -168,7 +171,10 @@ func UpdateClientItemPrice(c *gin.Context) {
 	}
 
 	var updated dto.ClientItemPrice
-	db.First(&updated, id)
+	if err := db.First(&updated, id).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "update saved but the record could not be reloaded"})
+		return
+	}
 	c.JSON(http.StatusOK, updated)
 }
 

@@ -88,15 +88,25 @@ func PostItems(c *gin.Context) {
 	// After a merge, `newItem` in memory still holds what was SENT, not
 	// the merged total (the +amount/+sub_total math happened in SQL, not
 	// in this struct) — re-fetch the real row so the response reflects
-	// the true state.
-	final := findExactItem(db, newItem.OrderId, newItem.ItemName, newItem.Size, newItem.Price)
+	// the true state. The row absolutely should exist at this point (we
+	// just created/upserted it), so unlike the dedupe-probe use below, a
+	// failure here is a genuine unexpected error worth surfacing rather
+	// than silently returning a zero-valued Items{} with a 201.
+	final, err := findExactItem(db, newItem.OrderId, newItem.ItemName, newItem.Size, newItem.Price)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "item saved but could not be reloaded"})
+		return
+	}
 	c.JSON(201, final)
 }
 
 // findExactItem looks up a row by the same four columns idx_items_dedupe
 // covers. Size needs special handling because SQLite (and SQL generally)
-// requires "IS NULL" rather than "= NULL" for a nil comparison.
-func findExactItem(db *gorm.DB, orderId, itemName string, size *string, price int64) dto.Items {
+// requires "IS NULL" rather than "= NULL" for a nil comparison. Returns
+// gorm.ErrRecordNotFound (wrapped in the returned error) when nothing
+// matches — callers that use this as a "does a duplicate exist?" probe
+// should treat a non-nil error as "no", not as a fatal failure.
+func findExactItem(db *gorm.DB, orderId, itemName string, size *string, price int64) (dto.Items, error) {
 	var item dto.Items
 	q := db.Where("order_id = ? AND item_name = ? AND price = ?", orderId, itemName, price)
 	if size != nil {
@@ -104,8 +114,8 @@ func findExactItem(db *gorm.DB, orderId, itemName string, size *string, price in
 	} else {
 		q = q.Where("size IS NULL")
 	}
-	q.First(&item)
-	return item
+	err := q.First(&item).Error
+	return item, err
 }
 
 func UpdateItems(c *gin.Context) {
@@ -186,8 +196,11 @@ func UpdateItems(c *gin.Context) {
 			resultPrice = body.Price
 		}
 
-		dupe := findExactItem(db, resultOrderId, resultItemName, resultSize, resultPrice)
-		if dupe.Id != 0 && dupe.Id != existing.Id {
+		// A not-found error here is the expected/normal case (no
+		// collision) — only a genuine match (err == nil) is worth acting
+		// on, so this intentionally doesn't treat findErr as fatal.
+		dupe, findErr := findExactItem(db, resultOrderId, resultItemName, resultSize, resultPrice)
+		if findErr == nil && dupe.Id != existing.Id {
 			c.JSON(http.StatusConflict, gin.H{
 				"error": "An item with this name, size, and price already exists on this order — adjust the quantity on that row instead of creating a duplicate",
 			})
@@ -206,7 +219,10 @@ func UpdateItems(c *gin.Context) {
 	}
 
 	var updated dto.Items
-	db.First(&updated, id)
+	if err := db.First(&updated, id).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "update saved but the record could not be reloaded"})
+		return
+	}
 	c.JSON(http.StatusOK, updated)
 }
 
