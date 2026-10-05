@@ -14,6 +14,12 @@ func AutoMigrate() error {
 	if err != nil {
 		return err
 	}
+	// Close this migration-only connection when done: the server uses its
+	// own shared one (handler.Connect), and SQLite only folds the WAL back
+	// into the main file once the last connection to it has closed.
+	if sqlDB, err := db.DB(); err == nil {
+		defer sqlDB.Close()
+	}
 
 	// This creates the 'suppliers' table based on your Struct in the dto package
 	err = db.AutoMigrate(&dto.Supplier{})
