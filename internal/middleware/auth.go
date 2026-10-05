@@ -3,6 +3,7 @@ package middleware
 import (
 	"bytes"
 	"encoding/json"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -66,30 +67,38 @@ func RequireAuth() gin.HandlerFunc {
 			return
 		}
 
-		payload, _ := json.Marshal(validateRequest{Token: raw})
-		req, err := http.NewRequest(http.MethodPost, authServiceURL+"/internal/validate", bytes.NewReader(payload))
+		resp, err := askAuthService(raw)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "auth check failed"})
-			return
-		}
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-Internal-Key", authInternalKey)
-
-		resp, err := httpClient.Do(req)
-		if err != nil {
-			// Auth service down/unreachable — fail closed, not open.
+			// Auth service down/unreachable even after a retry — fail
+			// closed, not open.
+			log.Printf("auth check: auth service unreachable: %v", err)
 			c.AbortWithStatusJSON(http.StatusBadGateway, gin.H{"error": "auth service unreachable"})
 			return
 		}
 		defer resp.Body.Close()
 
+		// The auth service says a session is dead only one way: 200 with
+		// valid=false. Any other status is about the auth service itself
+		// — 429 when it's rate limiting this backend during a burst of
+		// requests, 401/503 when AUTH_INTERNAL_KEY doesn't match or isn't
+		// set — and says nothing about this user's session. Those used to
+		// come back as 401 here, and the frontend logs people out on a
+		// 401, so a busy moment or a config slip signed everyone out.
+		// Now they're a 503: still refused (fail closed), but the page
+		// shows an error to retry instead of the login screen.
 		if resp.StatusCode != http.StatusOK {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+			log.Printf("auth check: auth service answered %d", resp.StatusCode)
+			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "auth service busy, try again in a moment"})
 			return
 		}
 
 		var vr validateResponse
-		if err := json.NewDecoder(resp.Body).Decode(&vr); err != nil || !vr.Valid {
+		if err := json.NewDecoder(resp.Body).Decode(&vr); err != nil {
+			log.Printf("auth check: unreadable answer from auth service: %v", err)
+			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "auth service busy, try again in a moment"})
+			return
+		}
+		if !vr.Valid {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 			return
 		}
@@ -102,6 +111,46 @@ func RequireAuth() gin.HandlerFunc {
 		c.Set("user_role", vr.User.Role)
 		c.Next()
 	}
+}
+
+// askAuthService posts the session token to KMA-auth's /internal/validate.
+// It tries a second time, after a short pause, when the auth service
+// can't be reached or answers 429/502/503/504: that's what a restart or
+// a burst of requests looks like from here (a redeploy of the auth stack
+// restarts it in a second or two), and one retry rides it out instead of
+// failing every request that arrives in that moment.
+func askAuthService(token string) (*http.Response, error) {
+	payload, err := json.Marshal(validateRequest{Token: token})
+	if err != nil {
+		return nil, err
+	}
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		if attempt > 0 {
+			time.Sleep(300 * time.Millisecond)
+		}
+		req, err := http.NewRequest(http.MethodPost, authServiceURL+"/internal/validate", bytes.NewReader(payload))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Internal-Key", authInternalKey)
+
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		switch resp.StatusCode {
+		case http.StatusTooManyRequests, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+			if attempt == 0 {
+				resp.Body.Close()
+				continue
+			}
+		}
+		return resp, nil
+	}
+	return nil, lastErr
 }
 
 // RequireRole gates a route to specific roles. Must run after

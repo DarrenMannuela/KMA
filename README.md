@@ -22,11 +22,18 @@ dto/                      GORM models — one struct per table, FKs and
                            cascade behavior declared via gorm tags
 api/kma.yaml              OpenAPI 3.0 spec, served at /docs/kma.yaml
                            and rendered at /swagger
-backup/                   backup.sh + crontab for the sqlite-backup
-                           sidecar container (see Backups below)
+backup/                   backup.sh + crontab for the backup container,
+                           restore.sh to put a backup back, and the
+                           Dockerfile of the small image (sqlite3, cron)
+                           the backup and sqlite-db containers run on
+update.sh                 back up, then rebuild and restart this stack
 Dockerfile                two-stage build (CGO needed for mattn/go-sqlite3)
 docker-compose.yaml       sqlite-db + backend + backup, on kma_network
+.env.example              the settings, copy to .env
 ```
+
+Not in the repository (git-ignored, customer data): `db_data/` (the
+database), `uploads/` (client-item photos), `backups/`, and `.env`.
 
 ## Data model
 
@@ -81,8 +88,10 @@ here — not left to nginx or the frontend to enforce.
 ## Running locally
 
 ```bash
+cp .env.example .env       # set AUTH_INTERNAL_KEY to match KMA-Auth's
 go run ./cmd/server        # needs ./db_data/kma.sqlite (auto-created)
                             # and AUTH_INTERNAL_KEY set to match KMA-Auth
+go test ./...              # the auth check's tests (internal/middleware)
 ```
 
 Or via Docker Compose (see below) for the full stack including the
@@ -97,14 +106,122 @@ nginx fronts everything; the backend's `:8000` is not published to the
 host, so the browser only ever reaches this API through nginx, never
 directly.
 
+Start them in that order — this one, then KMA-Auth, then KMA-Frontend:
+
+```bash
+cd KMA          && docker compose up -d --build
+cd ../KMA-Auth  && docker compose up -d --build
+cd ../KMA-Frontend && docker compose up -d --build
+```
+
+After a code change, update a stack with `./update.sh` instead: it takes
+a backup first, then rebuilds and restarts what changed.
+
+**Staying up.** Every container restarts by itself after a crash, but
+only while Docker Desktop runs: turn on Docker Desktop's **Settings →
+General → Start Docker Desktop when you sign in**, or nothing comes back
+after the Mac restarts. (In September the backends sat stopped for over
+two weeks before anyone noticed.) A stack stopped with `docker compose
+stop` stays stopped until it's started again.
+
+- **Health checks.** The backend is checked every 30s
+  (`/api/v1/healthz`); Docker Desktop and `docker compose ps` show it as
+  healthy or unhealthy. The backup container shows unhealthy when the
+  newest backup is more than 8 days old.
+- **Clean stops.** On a stop, restart or update, the backend finishes
+  the requests it's working on (up to 20s) before exiting, and closes the
+  database properly. It used to be killed mid-request (exit code 2).
+- **Logs rotate**: 5 files of 10 MB per container, so they never fill
+  the disk. `docker logs kma_backend` shows the backend's.
+- **The auth service restarting doesn't log anyone out.** The backend
+  asks the auth service about every request; when that service is busy
+  (rate limiting a burst of requests) or restarting, it retries once and
+  then answers 503 "try again", not 401. A 401 sends the browser to the
+  login page, so before this, a burst of page loads could sign everyone
+  out. Only the auth service saying "this session is invalid" is a 401.
+
 ## Backups
 
-The `backup` service (alpine + sqlite3, `backup/backup.sh` +
-`backup/crontab`) takes a live, WAL-safe `.backup` snapshot of
-`kma.sqlite` weekly (Sunday 2 AM), gzips it into `./backups/`, and
-prunes anything older than `BACKUP_RETENTION_DAYS` (default 30, so
-~4 backups kept). `init: true` on that service is load-bearing, not
-cosmetic — busybox `crond` needs a real PID 1 to own process groups,
-and without it the container crash-loops instead of running on
-schedule (see the comment in `docker-compose.yaml` if this ever
-regresses).
+The `backup` container backs up the database **and the client-item
+photos** into `./backups/` every 7 days:
+
+- `kma-<date>.sqlite.gz`: a live, WAL-safe `sqlite3 .backup` snapshot of
+  `kma.sqlite`, which must pass SQLite's integrity check before it
+  counts. One that fails is kept as `…_FAILED-CHECK.bad`, nothing is
+  pruned, and the failure shows in `docker logs kma_backup`.
+- `kma-uploads-<date>.tar.gz`: the `uploads/` folder.
+- The newest 8 of each are kept: pruned by count, never by age, so a
+  stack that was down for a month still has its last 8 backups when it
+  comes back.
+
+**When.** Cron checks every hour and takes a backup when the newest is 7
+days old or more, and it also checks when the container starts. A fixed
+weekly time (it used to be Sunday 2 AM UTC) is missed whenever the Mac
+is asleep or off then; this way the week's backup is taken within the
+hour of the Mac being on. Times are Jakarta time. Change the number kept
+and the interval with `BACKUP_KEEP` and `BACKUP_EVERY_DAYS` in
+`docker-compose.yaml`.
+
+**A second copy.** The backups sit on the same disk as the database, so
+a failed disk takes both. Set `BACKUP_COPY_DIR` in `.env` to an external
+drive or a synced folder (iCloud Drive, Google Drive) and every backup
+is copied there too, with the same number kept.
+
+```bash
+docker exec kma_backup sh /backup.sh                    # take a backup now
+docker logs kma_backup                                  # when backups ran
+./backup/restore.sh backups/kma-<date>.sqlite.gz        # put one back
+tar -xzf backups/kma-uploads-<date>.tar.gz -C uploads   # and its photos
+```
+
+`restore.sh` checks the backup first, asks you to type `yes`, stops the
+backend, moves the current database (with its `-wal`/`-shm` files) to
+`db_data/before-restore-<date>/` so the restore can itself be undone,
+and starts the backend again.
+
+Things preserved in that container's setup, in case they regress:
+- `init: true` is load-bearing, not cosmetic — busybox `crond` needs a
+  real PID 1 to own process groups, and without it the container
+  crash-loops instead of running on schedule (see the comment in
+  `docker-compose.yaml`).
+- Cron starts jobs with an empty environment, so the container saves its
+  settings to `/run/backup.env` when it starts and `backup.sh` reads them
+  back. Without that, the scheduled run in the auth stack looked for the
+  wrong file.
+- The database folder is mounted read-write, though the backup only
+  reads: after the backend stops cleanly SQLite has removed its
+  `-wal`/`-shm` files, and opening the database then has to create them.
+  Read-only, no backup could be taken while the backend was down.
+- `sqlite3`, `dcron` and `tzdata` are built into the image
+  (`backup/Dockerfile`) instead of installed at every start, which needed
+  the internet: booting without a connection left the container
+  crash-looping with no backups.
+
+## Photos
+
+Client-item photos are saved to `uploads/client-items/` in this folder
+(mounted into the backend at `/app/uploads`), and backed up with the
+database. Until October 2026 they were saved inside the backend
+container only, where any rebuild would have deleted them.
+
+## On a phone
+
+The frontend is served to the tailnet over HTTPS by `tailscale serve`
+(at `https://<mac-name>.<tailnet>.ts.net`), and can be installed as an
+app from there: Chrome's menu → **Install app** on Android, Safari's
+Share → **Add to Home Screen** on an iPhone. See KMA-Frontend's README.
+It's reachable while the Mac is awake and Tailscale and Docker Desktop
+are running.
+
+## Security notes
+
+- **This repository is public.** Everything committed can be read by
+  anyone, including its history. `.gitignore` keeps out the database,
+  backups, photos, `.env` files, keys and certificates; check `git
+  status` before every commit all the same.
+- If `.env` or the database is ever committed by mistake, deleting it
+  in a later commit isn't enough: it stays in the history. Rotate the
+  key it held (KMA-Auth's `AuthRotate.md`) and treat its data as public.
+- `.dockerignore` keeps the database, backups, photos and `.env` out of
+  image builds (they used to be sent to Docker, and kept in its build
+  cache, on every build).

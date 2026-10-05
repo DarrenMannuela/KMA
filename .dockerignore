@@ -1,0 +1,12 @@
+# Kept out of the image build. The build only needs the Go source and
+# api/; everything else here is customer data or secrets, which would
+# otherwise be sent to Docker on every build and kept in its build cache.
+.env
+.env.*
+db_data
+backups
+uploads
+*.sqlite
+*.sqlite-*
+.git
+.DS_Store

@@ -1,8 +1,42 @@
+# ── Customer data — never in the repository ──────────────────────────
+# The database, its backups and the uploaded client-item photos. The
+# repository is public: anything committed here can be read by anyone,
+# and stays in its history even after it's deleted.
 /db_data
 /backups
+/uploads
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.db
+*.dump
+*.bak
+*.bad
+
+# ── Secrets ──────────────────────────────────────────────────────────
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+.netrc
+.npmrc
+
+# ── Builds and logs ──────────────────────────────────────────────────
+/kma-server
+/bin/
+*.exe
+*.test
+*.out
+*.log
 
 # OS noise (you're on macOS)
 .DS_Store

@@ -1,8 +1,14 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/DarrenMannuela/KMA/internal/database"
 	"github.com/DarrenMannuela/KMA/internal/handler"
@@ -18,6 +24,12 @@ func main() {
 		// If DB fails, we stop the server immediately
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
+
+	// Open the shared connection now rather than on the first request:
+	// a database that can't be opened should stop the server at start
+	// (where Docker's restart policy and the logs make it obvious), not
+	// kill it mid-request later.
+	handler.Connect()
 
 	// err := database.DropAllTables()
 	// if err != nil {
@@ -172,6 +184,44 @@ func main() {
 		v1.DELETE("/client-item-price/:id", handler.DeleteClientItemPrice)
 	}
 
-	// Start server on port 8000 to match your OpenAPI 'servers' list
-	r.Run(":8000")
+	// Start server on port 8000 to match your OpenAPI 'servers' list.
+	// An http.Server rather than r.Run, so a stop can be graceful:
+	// Docker sends SIGTERM on every stop, restart and update, and before
+	// this the process was simply killed by it (exit code 2) — cutting
+	// off any save that was half way through. Now it stops taking new
+	// requests, lets the ones in flight finish (up to 20s; compose's
+	// stop_grace_period gives it 30s), then closes the database, which
+	// also folds the WAL back into kma.sqlite.
+	//
+	// ReadHeaderTimeout stops a client that opens a connection and never
+	// finishes sending its headers from holding it open forever. There's
+	// deliberately no overall read timeout: a 10MB photo upload over a
+	// slow phone connection can legitimately take a while.
+	srv := &http.Server{
+		Addr:              ":8000",
+		Handler:           r,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+	stop, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("Server failed: %v", err)
+		}
+	}()
+	log.Println("Listening on :8000")
+
+	<-stop.Done()
+	log.Println("Stopping: finishing the requests in progress")
+	ctx, done := context.WithTimeout(context.Background(), 20*time.Second)
+	defer done()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("Stopped before every request finished: %v", err)
+	}
+	if sqlDB, err := handler.Connect().DB(); err == nil {
+		if err := sqlDB.Close(); err != nil {
+			log.Printf("Closing the database: %v", err)
+		}
+	}
+	log.Println("Stopped cleanly")
 }
