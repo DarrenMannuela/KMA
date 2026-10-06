@@ -26,7 +26,7 @@ func GetClientByID(c *gin.Context) {
 	var client dto.Client
 	db := Connect()
 
-	if err := db.First(&client, id).Error; err != nil {
+	if err := db.Where("id = ?", id).First(&client).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Client not found"})
 		return
 	}
@@ -54,7 +54,7 @@ func UpdateClient(c *gin.Context) {
 	db := Connect()
 
 	var existing dto.Client
-	if err := db.First(&existing, id).Error; err != nil {
+	if err := db.Where("id = ?", id).First(&existing).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Client not found"})
 		return
 	}
@@ -93,7 +93,7 @@ func UpdateClient(c *gin.Context) {
 	}
 
 	var updated dto.Client
-	if err := db.First(&updated, id).Error; err != nil {
+	if err := db.Where("id = ?", id).First(&updated).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "update saved but the record could not be reloaded"})
 		return
 	}

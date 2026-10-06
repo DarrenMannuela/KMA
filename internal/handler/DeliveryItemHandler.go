@@ -42,14 +42,9 @@ func UpdateDeliveryItem(c *gin.Context) {
 	id := c.Param("id")
 	db := Connect()
 
-	// Load the existing row first — binding JSON into it afterwards means
-	// only the fields present in the request body get overwritten, and
-	// everything else keeps its current DB value (correct PATCH semantics).
-	// Loading AFTER binding, as before, let db.First() silently discard
-	// the incoming update since First() overwrites every field on the
-	// struct with what's already in the DB.
+	// Load first, then bind: only the fields sent overwrite the row.
 	var existing dto.DeliveryItem
-	if result := db.First(&existing, id); result.Error != nil {
+	if result := db.Where("id = ?", id).First(&existing); result.Error != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Item Order not found"})
 		return
 	}
@@ -59,13 +54,8 @@ func UpdateDeliveryItem(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
 		return
 	}
-	// If the request body included an "id", binding would've overwritten
-	// existing.Id with it, and Save() below builds its WHERE clause off
-	// whatever's in the struct — so a stray/stale id in the payload would
-	// silently update zero rows instead of this one (same bug fixed in
-	// UpdateDelivery/UpdateFinanceHeader). This id is an auto-increment
-	// PK that was never meant to be client-set, so we just pin it back
-	// rather than supporting a rename here.
+	// Pin the id back: a stray "id" in the body would make Save() update the
+	// wrong row (or none).
 	existing.Id = originalId
 
 	if result := db.Save(&existing); result.Error != nil {

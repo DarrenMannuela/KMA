@@ -77,5 +77,5 @@ func AutoMigrate() error {
 	if err != nil {
 		return err
 	}
-	return err
+	return db.AutoMigrate(&dto.Budget{}, &dto.RecurringCost{})
 }

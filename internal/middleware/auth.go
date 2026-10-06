@@ -44,13 +44,9 @@ type validateResponse struct {
 	} `json:"user"`
 }
 
-// RequireAuth is the actual security boundary for this API — not
-// nginx, not the frontend. It reads the session cookie the browser
-// sent, forwards it server-to-server to KMA-auth's /internal/validate
-// (gated there by AUTH_INTERNAL_KEY), and only lets the request
-// through if that comes back valid. Anyone hitting these routes
-// directly (curl, Postman, a scanner) without a real, live session
-// gets rejected here regardless of how they got to this port.
+// RequireAuth is the API's security boundary: it forwards the session
+// cookie to KMA-auth's /internal/validate (with AUTH_INTERNAL_KEY) and only
+// lets valid sessions through.
 func RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if authInternalKey == "" {
@@ -77,15 +73,9 @@ func RequireAuth() gin.HandlerFunc {
 		}
 		defer resp.Body.Close()
 
-		// The auth service says a session is dead only one way: 200 with
-		// valid=false. Any other status is about the auth service itself
-		// — 429 when it's rate limiting this backend during a burst of
-		// requests, 401/503 when AUTH_INTERNAL_KEY doesn't match or isn't
-		// set — and says nothing about this user's session. Those used to
-		// come back as 401 here, and the frontend logs people out on a
-		// 401, so a busy moment or a config slip signed everyone out.
-		// Now they're a 503: still refused (fail closed), but the page
-		// shows an error to retry instead of the login screen.
+		// Only 200 with valid=false means the session is dead. Any other status is
+		// about the auth service itself (rate limit, key mismatch): refuse with 503,
+		// which the frontend shows as retryable, not 401, which logs people out.
 		if resp.StatusCode != http.StatusOK {
 			log.Printf("auth check: auth service answered %d", resp.StatusCode)
 			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "auth service busy, try again in a moment"})
@@ -113,12 +103,9 @@ func RequireAuth() gin.HandlerFunc {
 	}
 }
 
-// askAuthService posts the session token to KMA-auth's /internal/validate.
-// It tries a second time, after a short pause, when the auth service
-// can't be reached or answers 429/502/503/504: that's what a restart or
-// a burst of requests looks like from here (a redeploy of the auth stack
-// restarts it in a second or two), and one retry rides it out instead of
-// failing every request that arrives in that moment.
+// askAuthService asks KMA-auth to validate a session token, retrying once
+// after a short pause if the service is unreachable or answers 429/502/503/504
+// (a restart or a burst).
 func askAuthService(token string) (*http.Response, error) {
 	payload, err := json.Marshal(validateRequest{Token: token})
 	if err != nil {

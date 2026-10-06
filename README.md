@@ -37,7 +37,7 @@ database), `uploads/` (client-item photos), `backups/`, and `.env`.
 
 ## Data model
 
-Thirteen entities, each with its own handler file in `internal/handler/`:
+Fifteen entities, each with its own handler file in `internal/handler/`:
 
 - **Orders → Items → Invoice** — an order carries line items and gets
   invoiced (dp/pelunasan split, tracked via `Invoice.Type`).
@@ -47,8 +47,12 @@ Thirteen entities, each with its own handler file in `internal/handler/`:
   client has its own independent item catalogue (no shared master
   price list) with full year-by-year price history per item.
 - **FinanceHeader → ProductionItem / OperationItem** — one shared
-  parent ("Kas Bon") for two kinds of cost lines, filtered by
-  `?type=production` or `?type=operation`.
+  parent ("Kas Bon") for two kinds of cost lines; a Kas Bon can hold
+  both. Each line can point at the order it was for (`order_id`, kept
+  in step when an order is renamed, cleared when it's deleted).
+  Production quantities are decimals (2.5 meters).
+- **Budget** (a monthly limit per scope and category) and
+  **RecurringCost** (rent, salaries… posted once a month as one Kas Bon).
 - **Supplier** — standalone.
 
 Most `id` columns are client-chosen sequential strings (e.g.
@@ -70,6 +74,14 @@ so a partial update never zeroes out the rest of the row.
   with "is this caller logged in" is what caused the frontend's health
   badge to read "offline" for what was actually just a logged-out
   session.
+- `POST /api/v1/finance/batch` — any set of Kas Bon changes in one
+  transaction: new Kas Bons, lines to create, update (whitelisted fields)
+  or delete, header date/description edits. All or nothing; the response
+  carries every changed or deleted row as it was, which is what the
+  frontend's undo sends back. A Kas Bon left without lines is removed.
+- `GET/PUT /api/v1/budget`, `/api/v1/recurring-cost` (CRUD) and
+  `POST /api/v1/recurring-cost/post-month` (adds the month's Kas Bon;
+  posting a month twice adds nothing).
 - `/docs/kma.yaml` + `/swagger/*` — OpenAPI spec and Swagger UI.
 - `/uploads/client-items/*` — catalogue photos, gated by the same
   `RequireAuth` as the API itself (not a public static folder).
@@ -225,3 +237,17 @@ are running.
 - `.dockerignore` keeps the database, backups, photos and `.env` out of
   image builds (they used to be sent to Docker, and kept in its build
   cache, on every build).
+- **Ids from the URL are values, never SQL.** Every lookup by id is
+  `Where("id = ?", id)`. GORM's shorthand `db.First(&x, id)` treats a
+  non-numeric string as raw SQL, so `/client/999 OR 1=1` used to return a
+  client, and the same in a supplier delete could have deleted them all.
+  Keep to the `?` form (`internal/handler/safety_test.go` checks it).
+- **A catalogue item can't name its own photo file.** `photo_path` is set
+  only by the photo upload, and deleting a photo only ever touches files in
+  `uploads/client-items/`. Taken from a request, it used to let deleting an
+  item delete any file the server could reach, the database included.
+- Dependencies are checked with
+  `GOTOOLCHAIN=go1.25.14 go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...`
+  (clean as of October 2026). The project builds with Go 1.25, so pin
+  library versions that still support it (`golang.org/x/text` v0.42+ needs
+  Go 1.26).

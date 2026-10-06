@@ -69,12 +69,8 @@ func UpdateFinanceHeader(c *gin.Context) {
 		return
 	}
 
-	// BUG FIX: same issue as UpdateDelivery — binding the body straight
-	// onto `existing` then calling Save() meant a client-supplied "id"
-	// change silently updated ZERO rows (Save() built its WHERE clause
-	// off the NEW id already sitting in the struct), while still
-	// returning 200 OK. Rewritten to precheck the new id and update
-	// anchored to the OLD id, same as UpdateOrders/UpdateDelivery.
+	// Precheck a new id and update anchored to the old one (binding onto the
+	// loaded row and calling Save() would update zero rows on a rename).
 	var raw map[string]json.RawMessage
 	if err := c.ShouldBindBodyWithJSON(&raw); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})

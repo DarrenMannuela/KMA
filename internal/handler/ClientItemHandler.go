@@ -47,17 +47,15 @@ func GetClientItemByID(c *gin.Context) {
 	var item dto.ClientItem
 	db := Connect()
 
-	if err := db.First(&item, id).Error; err != nil {
+	if err := db.Where("id = ?", id).First(&item).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Client item not found"})
 		return
 	}
 	c.JSON(http.StatusOK, item)
 }
 
-// PostClientItem intentionally does NOT upsert — unlike order line items
-// (Items.go), a duplicate client_id/item_name/size here is always a
-// mistake, so idx_client_items_dedupe just rejects it. The DB error
-// surfaces as a 500; there's no silent merge to fall back to.
+// PostClientItem doesn't upsert: a duplicate catalogue item is always a
+// mistake, and idx_client_items_dedupe rejects it.
 func PostClientItem(c *gin.Context) {
 	var newItem dto.ClientItem
 	db := Connect()
@@ -66,6 +64,12 @@ func PostClientItem(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
 		return
 	}
+	// The photo is only ever set by UploadClientItemPhoto. A photo_path in
+	// the request is ignored: it's a path on this server's disk, and
+	// deleting the item (or replacing its photo) deletes that file — taken
+	// from the request, it could have named any file, the database
+	// included.
+	newItem.PhotoPath = nil
 
 	if result := db.Create(&newItem); result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database insert failed — this client may already have an item with this name/size"})
@@ -79,7 +83,7 @@ func UpdateClientItem(c *gin.Context) {
 	db := Connect()
 
 	var existing dto.ClientItem
-	if err := db.First(&existing, id).Error; err != nil {
+	if err := db.Where("id = ?", id).First(&existing).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Client item not found"})
 		return
 	}
@@ -118,7 +122,7 @@ func UpdateClientItem(c *gin.Context) {
 	}
 
 	var updated dto.ClientItem
-	if err := db.First(&updated, id).Error; err != nil {
+	if err := db.Where("id = ?", id).First(&updated).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "update saved but the record could not be reloaded"})
 		return
 	}
@@ -130,8 +134,8 @@ func DeleteClientItem(c *gin.Context) {
 	db := Connect()
 
 	var existing dto.ClientItem
-	if err := db.First(&existing, id).Error; err == nil && existing.PhotoPath != nil {
-		os.Remove(photoFilePath(*existing.PhotoPath))
+	if err := db.Where("id = ?", id).First(&existing).Error; err == nil && existing.PhotoPath != nil {
+		removePhotoFile(*existing.PhotoPath)
 	}
 
 	result := db.Where("id = ?", id).Delete(&dto.ClientItem{})
@@ -154,30 +158,38 @@ var allowedPhotoExt = map[string]bool{
 	".png":  true,
 }
 
-// photoFilePath turns a stored PhotoPath (e.g.
-// "/uploads/client-items/5.png?v=1721800000000") back into a real
-// filesystem path relative to the working directory. The ?v= suffix only
-// exists to bust browser image caching on the frontend — it's meaningless
-// to the filesystem, so every os.Remove/comparison against an existing
-// PhotoPath needs to go through this first instead of a bare "."+PhotoPath.
-func photoFilePath(photoPath string) string {
+// photoFilePath turns a stored PhotoPath ("/uploads/client-items/5.png?v=…")
+// into a file path, dropping the cache-busting ?v=. ok is false for anything
+// not directly in the photo folder (another folder, "..", an absolute path):
+// callers then leave the disk alone.
+func photoFilePath(photoPath string) (path string, ok bool) {
+	p := photoPath
 	if u, err := url.Parse(photoPath); err == nil {
-		return "." + u.Path
+		p = u.Path
 	}
-	return "." + photoPath
+	name := strings.TrimPrefix(p, "/uploads/client-items/")
+	if name == p || name == "" || strings.ContainsAny(name, `/\`) || name == "." || name == ".." {
+		return "", false
+	}
+	return filepath.Join(clientItemPhotoDir, name), true
 }
 
-// UploadClientItemPhoto saves a product photo for one catalogue item to
-// local disk and records its path on the row. Filename is keyed on the
-// item's own id, so a re-upload naturally overwrites the previous photo
-// instead of accumulating orphaned files, and there's never a filename
-// collision to worry about since ClientItem.Id is already unique.
+// removePhotoFile deletes the photo a stored PhotoPath points to, if it's
+// one of ours.
+func removePhotoFile(photoPath string) {
+	if path, ok := photoFilePath(photoPath); ok {
+		os.Remove(path)
+	}
+}
+
+// UploadClientItemPhoto saves an item's photo to disk, named by the item's
+// id, so a new upload replaces the old file.
 func UploadClientItemPhoto(c *gin.Context) {
 	id := c.Param("id")
 	db := Connect()
 
 	var existing dto.ClientItem
-	if err := db.First(&existing, id).Error; err != nil {
+	if err := db.Where("id = ?", id).First(&existing).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Client item not found"})
 		return
 	}
@@ -214,8 +226,7 @@ func UploadClientItemPhoto(c *gin.Context) {
 	// (e.g. swapping a .png for a .jpg), remove the stale file so it
 	// doesn't linger unreferenced on disk.
 	if existing.PhotoPath != nil {
-		oldFullPath := photoFilePath(*existing.PhotoPath)
-		if oldFullPath != fullPath {
+		if oldFullPath, ok := photoFilePath(*existing.PhotoPath); ok && oldFullPath != fullPath {
 			os.Remove(oldFullPath)
 		}
 	}
@@ -225,10 +236,7 @@ func UploadClientItemPhoto(c *gin.Context) {
 		return
 	}
 
-	// ?v=<timestamp> busts the browser's image cache on replace — same
-	// filename every time (keyed on item id), so without a changing query
-	// string the <img> tag keeps showing the old cached photo even though
-	// the file on disk was genuinely overwritten.
+	// ?v=<timestamp> makes browsers fetch the replaced photo.
 	photoPath := fmt.Sprintf("/uploads/client-items/%s?v=%d", filename, time.Now().UnixMilli())
 	if err := db.Model(&existing).Update("photo_path", photoPath).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -236,7 +244,7 @@ func UploadClientItemPhoto(c *gin.Context) {
 	}
 
 	var updated dto.ClientItem
-	if err := db.First(&updated, id).Error; err != nil {
+	if err := db.Where("id = ?", id).First(&updated).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "photo saved but the record could not be reloaded"})
 		return
 	}
@@ -251,13 +259,13 @@ func DeleteClientItemPhoto(c *gin.Context) {
 	db := Connect()
 
 	var existing dto.ClientItem
-	if err := db.First(&existing, id).Error; err != nil {
+	if err := db.Where("id = ?", id).First(&existing).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Client item not found"})
 		return
 	}
 
 	if existing.PhotoPath != nil {
-		os.Remove(photoFilePath(*existing.PhotoPath))
+		removePhotoFile(*existing.PhotoPath)
 	}
 
 	// Map-based Updates (not struct-based) so a nil value is actually
@@ -268,7 +276,7 @@ func DeleteClientItemPhoto(c *gin.Context) {
 	}
 
 	var updated dto.ClientItem
-	if err := db.First(&updated, id).Error; err != nil {
+	if err := db.Where("id = ?", id).First(&updated).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "photo removed but the record could not be reloaded"})
 		return
 	}

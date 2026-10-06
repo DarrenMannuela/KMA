@@ -6,5 +6,6 @@ type OperationItem struct {
 	Category    string        `json:"category"`
 	Description string        `json:"description"`
 	Price       int64         `json:"price"`
+	OrderId     *string       `json:"order_id" gorm:"index"` // the order this cost was for, if any
 	Header      FinanceHeader `json:"-" gorm:"foreignKey:HeaderId;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
