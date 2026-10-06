@@ -24,18 +24,13 @@ func GetItems(c *gin.Context) {
 
 }
 
-// GetItemByID fetches a single line item by its (numeric, auto-increment)
-// PK. Every other entity in this API already has this single-record GET —
-// Items was the one gap: no handler existed, and main.go had no route for
-// it. itemsApi.get(id)/itemHooks.useGet(id) on the frontend call this via
-// the generic crud() factory, same as every other entity, so without this
-// that call would 404 the moment anything actually used it.
+// GetItemByID fetches one line item by its numeric id.
 func GetItemByID(c *gin.Context) {
 	id := c.Param("id")
 	var item dto.Items
 	db := Connect()
 
-	if err := db.First(&item, id).Error; err != nil {
+	if err := db.Where("id = ?", id).First(&item).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Item not found"})
 		return
 	}
@@ -63,13 +58,9 @@ func PostItems(c *gin.Context) {
 		return
 	}
 
-	// Upsert on the idx_items_dedupe unique index (order_id, item_name,
-	// size, price). If a row with those same four values already exists,
-	// fold the new amount/sub_total into it instead of inserting a
-	// duplicate row — this used to be a frontend-only check (only
-	// covered one form, and had a race between two near-simultaneous
-	// adds); doing it as a DB-level upsert makes it atomic and applies
-	// to every caller (UI, scripts, bulk import, etc).
+	// Upsert on idx_items_dedupe (order_id, item_name, size, price): the same
+	// item again adds its amount and sub_total to the existing row, atomically,
+	// for every caller.
 	result := db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{
 			{Name: "order_id"}, {Name: "item_name"}, {Name: "size"}, {Name: "price"},
@@ -85,13 +76,8 @@ func PostItems(c *gin.Context) {
 		return
 	}
 
-	// After a merge, `newItem` in memory still holds what was SENT, not
-	// the merged total (the +amount/+sub_total math happened in SQL, not
-	// in this struct) — re-fetch the real row so the response reflects
-	// the true state. The row absolutely should exist at this point (we
-	// just created/upserted it), so unlike the dedupe-probe use below, a
-	// failure here is a genuine unexpected error worth surfacing rather
-	// than silently returning a zero-valued Items{} with a 201.
+	// Re-read the row: after a merge the struct still holds what was sent, not
+	// the total.
 	final, err := findExactItem(db, newItem.OrderId, newItem.ItemName, newItem.Size, newItem.Price)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "item saved but could not be reloaded"})
@@ -100,12 +86,8 @@ func PostItems(c *gin.Context) {
 	c.JSON(201, final)
 }
 
-// findExactItem looks up a row by the same four columns idx_items_dedupe
-// covers. Size needs special handling because SQLite (and SQL generally)
-// requires "IS NULL" rather than "= NULL" for a nil comparison. Returns
-// gorm.ErrRecordNotFound (wrapped in the returned error) when nothing
-// matches — callers that use this as a "does a duplicate exist?" probe
-// should treat a non-nil error as "no", not as a fatal failure.
+// findExactItem looks up a row by the four idx_items_dedupe columns (a nil
+// size needs IS NULL). Returns gorm.ErrRecordNotFound when nothing matches.
 func findExactItem(db *gorm.DB, orderId, itemName string, size *string, price int64) (dto.Items, error) {
 	var item dto.Items
 	q := db.Where("order_id = ? AND item_name = ? AND price = ?", orderId, itemName, price)
@@ -123,15 +105,13 @@ func UpdateItems(c *gin.Context) {
 	db := Connect()
 
 	var existing dto.Items
-	if err := db.First(&existing, id).Error; err != nil {
+	if err := db.Where("id = ?", id).First(&existing).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Item not found"})
 		return
 	}
 
-	// raw tells us which fields were actually included in this PATCH —
-	// e.g. a request that only sends {"price": 50000} must leave
-	// item_name/size/amount/order_id untouched. ShouldBindBodyWithJSON
-	// caches the raw body, so binding it twice below is safe.
+	// Which fields this PATCH sends; the others stay as they are. The body is
+	// cached, so binding it twice is safe.
 	var raw map[string]json.RawMessage
 	if err := c.ShouldBindBodyWithJSON(&raw); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
@@ -164,15 +144,9 @@ func UpdateItems(c *gin.Context) {
 		updates["sub_total"] = body.SubTotal
 	}
 
-	// PostItems' upsert only merges duplicates on CREATE. A PATCH here goes
-	// straight at the row by PK, so editing name/size/price into a value
-	// that matches ANOTHER existing item on the same order would otherwise
-	// hit the idx_items_dedupe unique index and bubble up as a raw
-	// "Updates(...).Error" 500 below. Precheck it the same way PostOrders
-	// prechecks id collisions, and give a clean, actionable 409 instead.
-	// Only worth the extra query when a dedupe-relevant field is actually
-	// part of this patch — untouched-field patches (e.g. just `amount`)
-	// can't create a new collision.
+	// An edit that makes this item equal to another one on the order would
+	// break idx_items_dedupe: answer 409 instead of a 500. Only checked when a
+	// dedupe field changes.
 	_, orderIdChanging := raw["order_id"]
 	_, itemNameChanging := raw["item_name"]
 	_, sizeChanging := raw["size"]
@@ -219,7 +193,7 @@ func UpdateItems(c *gin.Context) {
 	}
 
 	var updated dto.Items
-	if err := db.First(&updated, id).Error; err != nil {
+	if err := db.Where("id = ?", id).First(&updated).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "update saved but the record could not be reloaded"})
 		return
 	}

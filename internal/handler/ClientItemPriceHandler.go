@@ -38,10 +38,7 @@ func GetClientItemPricesByItem(c *gin.Context) {
 	c.JSON(200, prices)
 }
 
-// GetClientItemPricesGrouped returns { [client_item_id]: Price[] } for
-// every item in one call — same "grouped" shape as
-// GetProductionItemsGrouped/GetOperationItemsGrouped, so a client's whole
-// catalogue-with-history can render without one request per item.
+// GetClientItemPricesGrouped returns { [client_item_id]: Price[] } in one call.
 func GetClientItemPricesGrouped(c *gin.Context) {
 	var prices []dto.ClientItemPrice
 	db := Connect()
@@ -59,12 +56,8 @@ func GetClientItemPricesGrouped(c *gin.Context) {
 	c.JSON(200, grouped)
 }
 
-// PostClientItemPrice upserts on idx_client_item_prices_dedupe
-// (client_item_id, year) — re-submitting a year that already has a row
-// corrects that row's price/effective_date in place, rather than
-// erroring or creating a second row for the same year. Mirrors PostItems'
-// upsert in ItemHandler.go, but a straight overwrite (no additive math)
-// since price isn't cumulative the way order-item amount/sub_total are.
+// PostClientItemPrice upserts on (client_item_id, year): a year that already
+// has a price is corrected in place.
 func PostClientItemPrice(c *gin.Context) {
 	var newPrice dto.ClientItemPrice
 	db := Connect()
@@ -94,22 +87,14 @@ func PostClientItemPrice(c *gin.Context) {
 	c.JSON(201, final)
 }
 
-// BUG FIX: this PATCH goes straight at the row by PK, unlike PostClientItemPrice's
-// upsert which only merges duplicates on CREATE. Editing Year (or Item) into a
-// value that matches ANOTHER existing price row for the same client_item_id
-// would otherwise hit the idx_client_item_prices_dedupe unique index and
-// bubble up as a raw "Updates(...).Error" 500 below — same failure mode
-// ItemHandler.go's UpdateItems already fixed for idx_items_dedupe. Precheck
-// it the same way, and return a clean, actionable 409 instead. Only worth the
-// extra query when a dedupe-relevant field (client_item_id or year) is
-// actually part of this patch — untouched-field patches (e.g. just `price`)
-// can't create a new collision.
+// An edit that collides with another year's row for the item answers 409
+// instead of a unique-index 500. Only checked when item or year changes.
 func UpdateClientItemPrice(c *gin.Context) {
 	id := c.Param("id")
 	db := Connect()
 
 	var existing dto.ClientItemPrice
-	if err := db.First(&existing, id).Error; err != nil {
+	if err := db.Where("id = ?", id).First(&existing).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Client item price not found"})
 		return
 	}
@@ -171,7 +156,7 @@ func UpdateClientItemPrice(c *gin.Context) {
 	}
 
 	var updated dto.ClientItemPrice
-	if err := db.First(&updated, id).Error; err != nil {
+	if err := db.Where("id = ?", id).First(&updated).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "update saved but the record could not be reloaded"})
 		return
 	}

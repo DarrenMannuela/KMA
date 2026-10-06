@@ -38,11 +38,8 @@ func PostInvoice(c *gin.Context) {
 		return
 	}
 
-	// Same pattern as PostOrders: catch the common "two clients suggested
-	// the same next invoice number" case with a clean pre-check, and
-	// treat any Create failure past that point as the true-simultaneous
-	// case hitting the Id primary key constraint — see PostOrders'
-	// comment for the fuller reasoning.
+	// As PostOrders: a precheck for the common "same suggested number" case;
+	// a create failure after it is treated as the simultaneous case.
 	var conflict dto.Invoice
 	if err := db.Where("id = ?", newInvoice.Id).First(&conflict).Error; err == nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "An invoice with this ID already exists"})

@@ -43,11 +43,8 @@ func PostDelivery(c *gin.Context) {
 		return
 	}
 
-	// Same pattern as PostOrders/PostInvoice/PostFinanceHeader — Delivery
-	// IDs are also client-suggested strings, so they're exposed to the
-	// identical "two clients suggested the same next number" race. A
-	// clean precheck turns that into an actionable 409 instead of a
-	// generic "Database insert failed" 500.
+	// As PostOrders: delivery IDs are suggested by clients too, so a clash
+	// answers 409.
 	var conflict dto.Delivery
 	if err := db.Where("id = ?", newDeliveries.Id).First(&conflict).Error; err == nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "A delivery with this ID already exists"})
@@ -73,23 +70,8 @@ func UpdateDelivery(c *gin.Context) {
 		return
 	}
 
-	// BUG FIX: the previous version bound the request body straight onto
-	// `existing` (which already has its PK set to the OLD id) and then
-	// called Save(). If the client's JSON included a changed "id",
-	// binding overwrote existing.Id with the NEW id, so Save() built
-	// "UPDATE deliveries SET ... WHERE id = <new id>" — matching ZERO
-	// rows. GORM doesn't treat 0-rows-affected as an error, so this
-	// silently returned 200 OK while leaving the actual row (still under
-	// the old id) completely untouched.
-	//
-	// Fixed the same way UpdateOrders/UpdateInvoice handle it: figure out
-	// the intended new id, precheck it for collisions, then update with
-	// the WHERE clause explicitly anchored to the OLD id.
-	//
-	// NOTE: field names below (ClientId, ClientContactId, PoNumber,
-	// PhoneNumber, ContactPerson, OrderId) are inferred from the
-	// frontend's Delivery interface — please confirm they match
-	// dto.Delivery before deploying, since that struct wasn't provided.
+	// Precheck a new id and update anchored to the old one (binding onto the
+	// loaded row and calling Save() would update zero rows on a rename).
 	var raw map[string]json.RawMessage
 	if err := c.ShouldBindBodyWithJSON(&raw); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})

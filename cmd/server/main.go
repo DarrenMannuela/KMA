@@ -25,31 +25,17 @@ func main() {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
-	// Open the shared connection now rather than on the first request:
-	// a database that can't be opened should stop the server at start
-	// (where Docker's restart policy and the logs make it obvious), not
-	// kill it mid-request later.
+	// Open the shared connection now, so a database that can't be opened stops
+	// the server at start rather than mid-request.
 	handler.Connect()
 
-	// err := database.DropAllTables()
-	// if err != nil {
-	// 	log.Fatalf("Failed to connect to database: %v", err)
-	// }
-
-	// // Optional: Log success
-	// log.Println("Database connection established and migration complete.")
 	r := gin.Default()
 
-	// 1. Serve the raw OpenAPI YAML file (needed for Swagger UI to render)
-	// Make sure your file is actually at ./api/openapi.yaml
+	// The OpenAPI spec, for the Swagger UI below.
 	r.StaticFile("/docs/kma.yaml", "api/kma.yaml")
 
-	// Serve uploaded photos (e.g. /uploads/client-items/42.jpg) — files
-	// land on disk under ./uploads via ClientItemHandler.go's
-	// UploadClientItemPhoto. Gated by RequireAuth same as the API
-	// itself: these are client-confidential catalogue photos, not
-	// public assets, so an unauthenticated request shouldn't be able
-	// to browse or fetch them just by guessing a filename.
+	// Catalogue photos (written by UploadClientItemPhoto), behind RequireAuth
+	// like the API: they're client-confidential.
 	uploads := r.Group("/uploads")
 	uploads.Use(mw.RequireAuth())
 	uploads.Static("/", "./uploads")
@@ -59,22 +45,14 @@ func main() {
 	url := ginSwagger.URL("http://localhost:8000/docs/kma.yaml")
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, url))
 
-	// Deliberately outside the v1 group below (and its RequireAuth
-	// middleware) — this needs to answer "is the backend process up"
-	// on its own, without depending on the caller having a valid
-	// session. Mixing those two questions is exactly what caused
-	// Topbar's health badge to read "offline" when it actually just
-	// meant "not logged in".
+	// Outside the auth group: "is the backend up", whether or not the caller
+	// is logged in.
 	r.GET("/api/v1/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	})
 
-	// 3. API V1 Routes Group
-	// RequireAuth is the actual security boundary here — it validates
-	// the caller's session against the auth service before any
-	// request reaches a handler. Without this, anyone who can reach
-	// this port (or route through nginx) could call these endpoints
-	// directly, without ever going through the frontend login.
+	// RequireAuth is the security boundary: every request's session is checked
+	// with the auth service before it reaches a handler.
 	v1 := r.Group("/api/v1")
 	v1.Use(mw.RequireAuth())
 	{
@@ -122,6 +100,17 @@ func main() {
 		v1.POST("/operation-item", handler.PostOperationItem)
 		v1.PATCH("/operation-item/:id", handler.UpdateOperationItem)
 		v1.DELETE("/operation-item/:id", handler.DeleteOperationItem)
+
+		// Kas Bon changes in one transaction (new Kas Bon, paste, import,
+		// bulk edit, undo), monthly budgets and recurring costs.
+		v1.POST("/finance/batch", handler.PostFinanceBatch)
+		v1.GET("/budget", handler.GetBudgets)
+		v1.PUT("/budget", handler.PutBudget)
+		v1.GET("/recurring-cost", handler.GetRecurringCosts)
+		v1.POST("/recurring-cost", handler.PostRecurringCost)
+		v1.POST("/recurring-cost/post-month", handler.PostRecurringMonth)
+		v1.PATCH("/recurring-cost/:id", handler.UpdateRecurringCost)
+		v1.DELETE("/recurring-cost/:id", handler.DeleteRecurringCost)
 
 		// Order-Recap Entry
 		v1.GET("/invoice", handler.GetInvoice)
@@ -172,10 +161,7 @@ func main() {
 		v1.POST("/client-item/:id/photo", handler.UploadClientItemPhoto)
 		v1.DELETE("/client-item/:id/photo", handler.DeleteClientItemPhoto)
 
-		// Client Item Price Entry — one row per (client_item, year),
-		// giving full year-by-year price history. /grouped returns
-		// { [client_item_id]: Price[] } so the catalogue page can load
-		// every item's full history in one request.
+		// One row per (client item, year); /grouped returns { [client_item_id]: Price[] }.
 		v1.GET("/client-item-price", handler.GetClientItemPrices)
 		v1.GET("/client-item-price/by-item", handler.GetClientItemPricesByItem)
 		v1.GET("/client-item-price/grouped", handler.GetClientItemPricesGrouped)
@@ -184,19 +170,11 @@ func main() {
 		v1.DELETE("/client-item-price/:id", handler.DeleteClientItemPrice)
 	}
 
-	// Start server on port 8000 to match your OpenAPI 'servers' list.
-	// An http.Server rather than r.Run, so a stop can be graceful:
-	// Docker sends SIGTERM on every stop, restart and update, and before
-	// this the process was simply killed by it (exit code 2) — cutting
-	// off any save that was half way through. Now it stops taking new
-	// requests, lets the ones in flight finish (up to 20s; compose's
-	// stop_grace_period gives it 30s), then closes the database, which
-	// also folds the WAL back into kma.sqlite.
-	//
-	// ReadHeaderTimeout stops a client that opens a connection and never
-	// finishes sending its headers from holding it open forever. There's
-	// deliberately no overall read timeout: a 10MB photo upload over a
-	// slow phone connection can legitimately take a while.
+	// An http.Server so a stop is graceful: on SIGTERM (every Docker stop and
+	// update) it stops taking requests, lets those in flight finish (up to 20s;
+	// compose allows 30s), then closes the database, folding the WAL back in.
+	// ReadHeaderTimeout drops clients that never finish their headers; there's
+	// no overall read timeout, since a photo upload on a slow phone takes a while.
 	srv := &http.Server{
 		Addr:              ":8000",
 		Handler:           r,

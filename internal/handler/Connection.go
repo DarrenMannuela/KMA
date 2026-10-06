@@ -13,21 +13,11 @@ var (
 	dbOnce     sync.Once
 )
 
-// Connect returns a single shared, pooled connection rather than opening a
-// fresh one per call. This matters specifically for SQLite: the file only
-// ever allows one writer at a time no matter what the application does,
-// so previously — every handler opening its own connection — concurrent
-// writes (e.g. two people submitting orders at once) could each grab a
-// separate connection and collide on that single write lock, surfacing as
-// "database is locked" errors instead of one request cleanly waiting a
-// few milliseconds for the other.
-//
-//   - _journal_mode=WAL lets reads proceed without blocking on writes.
-//   - _busy_timeout=5000 tells SQLite to wait (up to 5s) for the write
-//     lock instead of failing immediately when it's held elsewhere.
-//   - SetMaxOpenConns(1) caps Go's own pool at one connection, so
-//     concurrent requests queue in Go (fast, in-memory) rather than
-//     racing each other for SQLite's write lock at the driver level.
+// Connect returns one shared connection. SQLite allows one writer at a time,
+// so writes queue in Go instead of colliding as "database is locked":
+//   - _journal_mode=WAL: reads don't wait for writes.
+//   - _busy_timeout=5000: wait up to 5s for the write lock.
+//   - SetMaxOpenConns(1): one connection, requests queue for it.
 func Connect() *gorm.DB {
 	dbOnce.Do(func() {
 		conn, err := gorm.Open(
