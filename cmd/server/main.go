@@ -101,9 +101,27 @@ func main() {
 		v1.PATCH("/operation-item/:id", handler.UpdateOperationItem)
 		v1.DELETE("/operation-item/:id", handler.DeleteOperationItem)
 
+		// Bukti Kas Header Entry — cash RECEIVED, separate from the Kas
+		// Bon headers above (which record cash going out).
+		v1.GET("/bukti-kas-header", handler.GetBuktiKasHeaders)
+		v1.GET("/bukti-kas-header/*id", handler.GetBuktiKasHeaderByID)
+		v1.POST("/bukti-kas-header", handler.PostBuktiKasHeader)
+		v1.PATCH("/bukti-kas-header/*id", handler.UpdateBuktiKasHeader)
+		v1.DELETE("/bukti-kas-header/*id", handler.DeleteBuktiKasHeader)
+
+		// Bukti Kas Item Entry — cash-received lines under a Bukti Kas header
+		v1.GET("/bukti-kas-item", handler.GetBuktiKasItems)
+		v1.GET("/bukti-kas-item/by-header", handler.GetBuktiKasItemsByHeader)
+		v1.GET("/bukti-kas-item/grouped", handler.GetBuktiKasItemsGrouped)
+		v1.POST("/bukti-kas-item", handler.PostBuktiKasItem)
+		v1.PATCH("/bukti-kas-item/:id", handler.UpdateBuktiKasItem)
+		v1.DELETE("/bukti-kas-item/:id", handler.DeleteBuktiKasItem)
+
 		// Kas Bon changes in one transaction (new Kas Bon, paste, import,
 		// bulk edit, undo), monthly budgets and recurring costs.
 		v1.POST("/finance/batch", handler.PostFinanceBatch)
+		v1.POST("/bukti-kas/batch", handler.PostBuktiKasBatch)
+		v1.POST("/client-catalogue/batch", handler.PostCatalogueBatch)
 		v1.GET("/budget", handler.GetBudgets)
 		v1.PUT("/budget", handler.PutBudget)
 		v1.GET("/recurring-cost", handler.GetRecurringCosts)

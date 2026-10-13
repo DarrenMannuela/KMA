@@ -79,6 +79,11 @@ so a partial update never zeroes out the rest of the row.
   or delete, header date/description edits. All or nothing; the response
   carries every changed or deleted row as it was, which is what the
   frontend's undo sends back. A Kas Bon left without lines is removed.
+- `POST /api/v1/client-catalogue/batch` — changes to one client's
+  catalogue in one transaction: items found by name and size or added
+  (with their prices), prices set or removed for a year, items removed.
+  Every item and price must belong to that client. The response has what
+  was created and each touched price as it was, for undo.
 - `GET/PUT /api/v1/budget`, `/api/v1/recurring-cost` (CRUD) and
   `POST /api/v1/recurring-cost/post-month` (adds the month's Kas Bon;
   posting a month twice adds nothing).

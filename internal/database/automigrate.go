@@ -38,6 +38,14 @@ func AutoMigrate() error {
 	if err != nil {
 		return err
 	}
+	err = db.AutoMigrate(&dto.BuktiKasHeader{})
+	if err != nil {
+		return err
+	}
+	err = db.AutoMigrate(&dto.BuktiKasItem{})
+	if err != nil {
+		return err
+	}
 	// Client + ClientContact + ClientItem + ClientItemPrice must migrate
 	// before Orders — Orders now carries optional client_id/
 	// client_contact_id FKs (see Orders.go) that reference these tables.
