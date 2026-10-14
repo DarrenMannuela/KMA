@@ -171,18 +171,41 @@ photos** into `./backups/` every 7 days:
   stack that was down for a month still has its last 8 backups when it
   comes back.
 
-**When.** Cron checks every hour and takes a backup when the newest is 7
-days old or more, and it also checks when the container starts. A fixed
-weekly time (it used to be Sunday 2 AM UTC) is missed whenever the Mac
-is asleep or off then; this way the week's backup is taken within the
-hour of the Mac being on. Times are Jakarta time. Change the number kept
-and the interval with `BACKUP_KEEP` and `BACKUP_EVERY_DAYS` in
-`docker-compose.yaml`.
+**When.** Cron checks every hour and takes a backup when the newest is
+`BACKUP_EVERY_DAYS` old or more (default 7), and it also checks when the
+container starts. A fixed weekly time (it used to be Sunday 2 AM UTC) is
+missed whenever the Mac is asleep or off then; this way the week's
+backup is taken within the hour of the Mac being on. Times are Jakarta
+time. Change the number kept with `BACKUP_KEEP` in `docker-compose.yaml`;
+change how often with `BACKUP_EVERY_DAYS` in `.env` (daily, for example,
+caps how much a restore could lose):
+
+```bash
+echo "BACKUP_EVERY_DAYS=1" >> .env
+docker compose up -d --force-recreate backup
+```
 
 **A second copy.** The backups sit on the same disk as the database, so
 a failed disk takes both. Set `BACKUP_COPY_DIR` in `.env` to an external
 drive or a synced folder (iCloud Drive, Google Drive) and every backup
-is copied there too, with the same number kept.
+is copied there too, with the same number kept:
+
+```bash
+mkdir -p ~/Desktop/KMA-Backups/kma   # or wherever the second copy should live
+echo "BACKUP_COPY_DIR=$HOME/Desktop/KMA-Backups/kma" >> .env
+docker compose up -d --force-recreate backup
+docker exec kma_backup sh /backup.sh   # take one now and confirm it copied
+ls ~/Desktop/KMA-Backups/kma
+```
+
+Using Google Drive instead of a plain folder: install **Google Drive for
+desktop**, sign in, and in its settings pick **"Mirror files"** for the
+folder you'll use (not "Stream files" — a streamed file isn't always
+actually present on disk, which a Docker bind mount needs). Then point
+`BACKUP_COPY_DIR` at the mirrored path, typically
+`~/Library/CloudStorage/GoogleDrive-<your-email>/My Drive/KMA-Backups/kma`
+(the exact path only exists once the app's installed and signed in —
+check `ls ~/Library/CloudStorage/` to confirm it before using it).
 
 ```bash
 docker exec kma_backup sh /backup.sh                    # take a backup now

@@ -101,9 +101,10 @@ services:
       TZ: Asia/Jakarta
       UPLOADS_DIR: /uploads
       # How many backups to keep (of the database and of the photos,
-      # each), and how often to take one.
+      # each), and how often to take one. Override BACKUP_EVERY_DAYS in
+      # .env for a tighter cadence than the default weekly.
       BACKUP_KEEP: "8"
-      BACKUP_EVERY_DAYS: "7"
+      BACKUP_EVERY_DAYS: ${BACKUP_EVERY_DAYS:-7}
       BACKUP_COPY: ${BACKUP_COPY_DIR:+on}
     # backup.sh is invoked via `sh backup.sh` rather than executed
     # directly, so it never needs its executable bit set (a chmod on the
