@@ -237,6 +237,56 @@ Things preserved in that container's setup, in case they regress:
   the internet: booting without a connection left the container
   crash-looping with no backups.
 
+## Watchdog
+
+On 2026-10-14 the `kma_backend` and `kma_auth_backend` containers stopped
+cleanly (not a crash) while the Mac stayed up the whole time — Docker
+Desktop itself most likely restarted (e.g. an auto-update) without bringing
+the containers back, despite `restart: unless-stopped` being set everywhere.
+Nobody noticed: the app was just unreachable for about 41 hours until it
+came up in unrelated testing.
+
+`watchdog/kma-watchdog.sh` is the fix: a script that checks the frontend,
+backend and auth service are all reachable, and if any isn't, runs
+`docker compose up -d` in that repo and logs it. It's meant to run every 5
+minutes via a macOS LaunchAgent (`watchdog/com.kma.watchdog.plist`), so an
+outage like that self-heals within 5 minutes instead of going unnoticed for
+days.
+
+**Setup on a given Mac** (this has to be redone per machine — it's local
+background automation, not something `docker compose up` brings with it):
+
+```bash
+# The script can't run from inside this repo (or anywhere under
+# ~/Documents) — macOS blocks background processes from executing files
+# there even with correct permissions. ~/Library/Scripts isn't protected.
+mkdir -p ~/Library/Scripts
+cp watchdog/kma-watchdog.sh ~/Library/Scripts/kma-watchdog.sh
+chmod +x ~/Library/Scripts/kma-watchdog.sh
+
+# The plist hardcodes an absolute path to that script and to this user's
+# home — edit watchdog/com.kma.watchdog.plist first if the username or
+# the script's install path above differs from /Users/darrenmp/...
+cp watchdog/com.kma.watchdog.plist ~/Library/LaunchAgents/com.kma.watchdog.plist
+launchctl load ~/Library/LaunchAgents/com.kma.watchdog.plist
+```
+
+**Checking it:**
+
+```bash
+launchctl list | grep kma           # loaded, and its last exit code (0 = OK)
+cat ~/Library/Logs/kma-watchdog.log      # only has entries when it actually fixed something
+cat ~/Library/Logs/kma-watchdog.err.log  # should be empty
+```
+
+**After editing the script**, re-copy it and kickstart a fresh run (editing
+the file in place doesn't change what launchd already loaded):
+
+```bash
+cp watchdog/kma-watchdog.sh ~/Library/Scripts/kma-watchdog.sh
+launchctl kickstart -k gui/$(id -u)/com.kma.watchdog
+```
+
 ## Photos
 
 Client-item photos are saved to `uploads/client-items/` in this folder
