@@ -46,8 +46,22 @@ func main() {
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, url))
 
 	// Outside the auth group: "is the backend up", whether or not the caller
-	// is logged in.
+	// is logged in. Also pings the database — the watchdog polls exactly this
+	// endpoint to decide whether to restart anything, so a healthy process
+	// sitting on a locked/corrupted/unreachable database needs to report
+	// unhealthy too, not just "the process is running".
 	r.GET("/api/v1/healthz", func(c *gin.Context) {
+		sqlDB, err := handler.Connect().DB()
+		if err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"ok": false, "error": "database unavailable"})
+			return
+		}
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+		defer cancel()
+		if err := sqlDB.PingContext(ctx); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"ok": false, "error": "database unavailable"})
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	})
 
@@ -118,10 +132,12 @@ func main() {
 		v1.DELETE("/bukti-kas-item/:id", handler.DeleteBuktiKasItem)
 
 		// Kas Bon changes in one transaction (new Kas Bon, paste, import,
-		// bulk edit, undo), monthly budgets and recurring costs.
-		v1.POST("/finance/batch", handler.PostFinanceBatch)
-		v1.POST("/bukti-kas/batch", handler.PostBuktiKasBatch)
-		v1.POST("/client-catalogue/batch", handler.PostCatalogueBatch)
+		// bulk edit, undo), monthly budgets and recurring costs. Each call
+		// can touch up to ~2000 rows including deletes, so these three
+		// carry a per-user rate limit the rest of v1 doesn't need.
+		v1.POST("/finance/batch", mw.RateLimitBatch(), handler.PostFinanceBatch)
+		v1.POST("/bukti-kas/batch", mw.RateLimitBatch(), handler.PostBuktiKasBatch)
+		v1.POST("/client-catalogue/batch", mw.RateLimitBatch(), handler.PostCatalogueBatch)
 		v1.GET("/budget", handler.GetBudgets)
 		v1.PUT("/budget", handler.PutBudget)
 		v1.GET("/recurring-cost", handler.GetRecurringCosts)
