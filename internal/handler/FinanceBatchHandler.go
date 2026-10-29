@@ -81,7 +81,7 @@ func badBatch(format string, a ...interface{}) error {
 func PostFinanceBatch(c *gin.Context) {
 	var b FinanceBatch
 	if err := c.ShouldBindBodyWithJSON(&b); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON: " + err.Error()})
+		bindError(c, err)
 		return
 	}
 	size := len(b.NewHeaders) + len(b.Headers) + len(b.HeaderUpdate) + len(b.ProductionCreate) + len(b.OperationCreate) +
@@ -102,7 +102,7 @@ func PostFinanceBatch(c *gin.Context) {
 	case errors.As(err, &be):
 		c.JSON(be.status, gin.H{"error": be.msg})
 	case err != nil:
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Saving failed: " + err.Error()})
+		dbError(c, err)
 	default:
 		c.JSON(http.StatusOK, res)
 	}
@@ -165,22 +165,20 @@ func applyBatch(tx *gorm.DB, b *FinanceBatch, res *FinanceBatchResult) error {
 		if err := tx.Where("id = ?", p.Id).First(&before).Error; err != nil {
 			return batchError{http.StatusNotFound, fmt.Sprintf("Production line %d not found", p.Id)}
 		}
-		if err := patchItem(tx, &dto.ProductionItem{}, p, productionFields); err != nil {
+		if err := patchItem(tx, &dto.ProductionItem{}, p, productionFields, needHeader); err != nil {
 			return err
 		}
 		res.ProductionBefore = append(res.ProductionBefore, before)
-		touched[before.HeaderId] = true
 	}
 	for _, p := range b.OperationUpdate {
 		var before dto.OperationItem
 		if err := tx.Where("id = ?", p.Id).First(&before).Error; err != nil {
 			return batchError{http.StatusNotFound, fmt.Sprintf("Operation line %d not found", p.Id)}
 		}
-		if err := patchItem(tx, &dto.OperationItem{}, p, operationFields); err != nil {
+		if err := patchItem(tx, &dto.OperationItem{}, p, operationFields, needHeader); err != nil {
 			return err
 		}
 		res.OperationBefore = append(res.OperationBefore, before)
-		touched[before.HeaderId] = true
 	}
 
 	if len(b.ProductionDelete) > 0 {
@@ -210,7 +208,14 @@ func applyBatch(tx *gorm.DB, b *FinanceBatch, res *FinanceBatchResult) error {
 		res.OperationDeleted = gone
 	}
 
-	// A Kas Bon left with no lines on either side is removed with its last line.
+	// A Kas Bon left with no lines on either side is removed with its last
+	// line — but only when this request explicitly deleted that last line
+	// (touched is only populated by the delete loops above, never by a
+	// reparent). A header emptied by moving its last line elsewhere is left
+	// alone: it may look empty only because an unrelated, separate request
+	// already moved its other lines out, and auto-deleting it there could
+	// destroy a header this request never touched (e.g. during a replayed
+	// undo of an earlier move).
 	for id := range touched {
 		var n int64
 		tx.Model(&dto.ProductionItem{}).Where("header_id = ?", id).Count(&n)
@@ -270,7 +275,10 @@ func needHeader(tx *gorm.DB, id string) error {
 }
 
 // patchItem applies the allowed fields of p to one row of model's table.
-func patchItem(tx *gorm.DB, model interface{}, p ItemPatch, allowed map[string]func() interface{}) error {
+// needHeaderFn must check the header table model's own header_id actually
+// refers to (Kas Bon vs Bukti Kas have separate, non-interchangeable
+// header tables).
+func patchItem(tx *gorm.DB, model interface{}, p ItemPatch, allowed map[string]func() interface{}, needHeaderFn func(*gorm.DB, string) error) error {
 	updates := map[string]interface{}{}
 	for k, raw := range p.Fields {
 		mk, ok := allowed[k]
@@ -298,7 +306,7 @@ func patchItem(tx *gorm.DB, model interface{}, p ItemPatch, allowed map[string]f
 		return nil
 	}
 	if id, ok := updates["header_id"].(string); ok {
-		if err := needHeader(tx, id); err != nil {
+		if err := needHeaderFn(tx, id); err != nil {
 			return err
 		}
 	}

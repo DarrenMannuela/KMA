@@ -14,7 +14,7 @@ func GetDeliveryItem(c *gin.Context) {
 	results := db.Find(&itemOrders)
 
 	if results.Error != nil {
-		c.JSON(500, gin.H{"error": results.Error.Error()})
+		dbError(c, results.Error)
 		return
 	}
 

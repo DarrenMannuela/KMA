@@ -13,7 +13,7 @@ func GetFinanceHeaders(c *gin.Context) {
 	db := Connect()
 
 	if err := db.Find(&headers).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		dbError(c, err)
 		return
 	}
 

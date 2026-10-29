@@ -16,7 +16,7 @@ func GetSupplier(c *gin.Context) {
 
 	results := db.Find(&suppliers)
 	if results.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": results.Error.Error()})
+		dbError(c, results.Error)
 		return
 	}
 	c.JSON(http.StatusOK, suppliers)
@@ -27,7 +27,7 @@ func PostSupplier(c *gin.Context) {
 	db := Connect()
 
 	if err := c.ShouldBindJSON(&supplier); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON: " + err.Error()})
+		bindError(c, err)
 		return
 	}
 
@@ -49,7 +49,7 @@ func GetSupplierByID(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Supplier not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		dbError(c, err)
 		return
 	}
 
@@ -92,7 +92,7 @@ func UpdateSupplier(c *gin.Context) {
 
 	if len(updates) > 0 {
 		if err := db.Model(&existing).Updates(updates).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			dbError(c, err)
 			return
 		}
 	}

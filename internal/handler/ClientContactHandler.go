@@ -14,7 +14,7 @@ func GetClientContacts(c *gin.Context) {
 
 	results := db.Find(&contacts)
 	if results.Error != nil {
-		c.JSON(500, gin.H{"error": results.Error.Error()})
+		dbError(c, results.Error)
 		return
 	}
 
@@ -30,7 +30,7 @@ func GetClientContactsByClient(c *gin.Context) {
 
 	result := db.Where("client_id = ?", clientId).Find(&contacts)
 	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		dbError(c, result.Error)
 		return
 	}
 	c.JSON(200, contacts)
@@ -114,7 +114,7 @@ func UpdateClientContact(c *gin.Context) {
 
 	if len(updates) > 0 {
 		if err := db.Model(&existing).Updates(updates).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			dbError(c, err)
 			return
 		}
 	}

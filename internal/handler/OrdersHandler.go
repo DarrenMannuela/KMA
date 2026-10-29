@@ -15,7 +15,7 @@ func GetOrders(c *gin.Context) {
 
 	results := db.Find(&orders)
 	if results.Error != nil {
-		c.JSON(500, gin.H{"error": results.Error.Error()})
+		dbError(c, results.Error)
 		return
 	}
 
@@ -133,7 +133,7 @@ func UpdateOrders(c *gin.Context) {
 		return relinkCosts(tx, existing.Id, &newId)
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		dbError(c, err)
 		return
 	}
 

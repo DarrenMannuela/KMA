@@ -16,7 +16,7 @@ func GetClientItemPrices(c *gin.Context) {
 
 	results := db.Order("year asc").Find(&prices)
 	if results.Error != nil {
-		c.JSON(500, gin.H{"error": results.Error.Error()})
+		dbError(c, results.Error)
 		return
 	}
 
@@ -32,7 +32,7 @@ func GetClientItemPricesByItem(c *gin.Context) {
 
 	result := db.Where("client_item_id = ?", clientItemId).Order("year asc").Find(&prices)
 	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		dbError(c, result.Error)
 		return
 	}
 	c.JSON(200, prices)
@@ -44,7 +44,7 @@ func GetClientItemPricesGrouped(c *gin.Context) {
 	db := Connect()
 
 	if err := db.Order("year asc").Find(&prices).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		dbError(c, err)
 		return
 	}
 
@@ -64,6 +64,12 @@ func PostClientItemPrice(c *gin.Context) {
 
 	if err := c.ShouldBindBodyWithJSON(&newPrice); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
+		return
+	}
+
+	var item dto.ClientItem
+	if err := db.Where("id = ?", newPrice.ClientItemId).First(&item).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Catalogue item doesn't exist"})
 		return
 	}
 
@@ -128,6 +134,14 @@ func UpdateClientItemPrice(c *gin.Context) {
 	_, itemChanging := raw["client_item_id"]
 	_, yearChanging := raw["year"]
 
+	if itemChanging {
+		var item dto.ClientItem
+		if err := db.Where("id = ?", body.ClientItemId).First(&item).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Catalogue item doesn't exist"})
+			return
+		}
+	}
+
 	if itemChanging || yearChanging {
 		resultItemId := existing.ClientItemId
 		if itemChanging {
@@ -150,7 +164,7 @@ func UpdateClientItemPrice(c *gin.Context) {
 
 	if len(updates) > 0 {
 		if err := db.Model(&existing).Updates(updates).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			dbError(c, err)
 			return
 		}
 	}

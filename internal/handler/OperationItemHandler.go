@@ -13,7 +13,7 @@ func GetOperationItems(c *gin.Context) {
 	db := Connect()
 
 	if err := db.Find(&items).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		dbError(c, err)
 		return
 	}
 
@@ -31,7 +31,7 @@ func GetOperationItemsByHeader(c *gin.Context) {
 	db := Connect()
 
 	if err := db.Where("header_id = ?", headerId).Find(&items).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		dbError(c, err)
 		return
 	}
 
@@ -43,7 +43,7 @@ func GetOperationItemsGrouped(c *gin.Context) {
 	db := Connect()
 
 	if err := db.Find(&items).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		dbError(c, err)
 		return
 	}
 

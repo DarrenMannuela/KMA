@@ -95,8 +95,11 @@ func TestBatchSavesAWholeKasBon(t *testing.T) {
 	}
 }
 
-// Moving every line off a Kas Bon removes it; deleting lines hands back what
-// was deleted, and sending that back restores it exactly.
+// Moving the last line off a Kas Bon leaves the now-empty header in place
+// (only an explicit delete of its last line removes it — see the security
+// audit's finding on why reparenting must never cascade into a header
+// delete); deleting lines hands back what was deleted, and sending that
+// back restores it exactly.
 func TestBatchBulkEditAndUndo(t *testing.T) {
 	res := batch(t, `{
 		"new_headers": [{"id": "02/KB/90", "date": "2090-02-01", "description": "A"}, {"id": "03/KB/90", "date": "2090-02-02", "description": "B"}],
@@ -110,8 +113,8 @@ func TestBatchBulkEditAndUndo(t *testing.T) {
 	if len(out.OperationBefore) != 1 || out.OperationBefore[0].HeaderId != "02/KB/90" || out.OperationBefore[0].Category != "LISTRIK" {
 		t.Errorf("before: %+v", out.OperationBefore)
 	}
-	if headerExists("02/KB/90") || len(out.HeadersDeleted) != 1 {
-		t.Errorf("the emptied Kas Bon should be removed: %+v", out.HeadersDeleted)
+	if !headerExists("02/KB/90") || len(out.HeadersDeleted) != 0 {
+		t.Errorf("a Kas Bon emptied by moving its line elsewhere should be left alone, not auto-deleted: exists=%v, headersDeleted=%+v", headerExists("02/KB/90"), out.HeadersDeleted)
 	}
 
 	del := batch(t, `{"operation_delete": [`+itoa(res.Operation[0].Id)+`, `+itoa(res.Operation[1].Id)+`]}`, http.StatusOK)

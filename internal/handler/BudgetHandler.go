@@ -16,7 +16,7 @@ import (
 func GetBudgets(c *gin.Context) {
 	var budgets []dto.Budget
 	if err := Connect().Order("scope, category").Find(&budgets).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		dbError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, budgets)
@@ -64,7 +64,7 @@ func PutBudget(c *gin.Context) {
 func GetRecurringCosts(c *gin.Context) {
 	var costs []dto.RecurringCost
 	if err := Connect().Order("category, description").Find(&costs).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		dbError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, costs)

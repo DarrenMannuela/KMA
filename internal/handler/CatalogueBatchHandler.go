@@ -65,7 +65,7 @@ type CatalogueBatchResult struct {
 func PostCatalogueBatch(c *gin.Context) {
 	var b CatalogueBatch
 	if err := c.ShouldBindBodyWithJSON(&b); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON: " + err.Error()})
+		bindError(c, err)
 		return
 	}
 	size := len(b.UpsertItems) + len(b.SetPrices) + len(b.DeletePrices) + len(b.DeleteItems)
@@ -88,7 +88,7 @@ func PostCatalogueBatch(c *gin.Context) {
 	case errors.As(err, &be):
 		c.JSON(be.status, gin.H{"error": be.msg})
 	case err != nil:
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Saving failed: " + err.Error()})
+		dbError(c, err)
 	default:
 		// The photos of removed items go once the removal is saved.
 		for _, it := range res.ItemsDeleted {

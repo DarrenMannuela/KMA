@@ -20,7 +20,7 @@ func GetClientItems(c *gin.Context) {
 
 	results := db.Find(&items)
 	if results.Error != nil {
-		c.JSON(500, gin.H{"error": results.Error.Error()})
+		dbError(c, results.Error)
 		return
 	}
 
@@ -36,7 +36,7 @@ func GetClientItemsByClient(c *gin.Context) {
 
 	result := db.Where("client_id = ?", clientId).Find(&items)
 	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		dbError(c, result.Error)
 		return
 	}
 	c.JSON(200, items)
@@ -100,10 +100,12 @@ func UpdateClientItem(c *gin.Context) {
 		return
 	}
 
+	// client_id is deliberately not updatable here: an item's catalogue
+	// (and the price history and photo that follow it, since
+	// ClientItemPrice has no client_id of its own) belongs to the client
+	// it was created under. Relocating it is not a supported operation —
+	// CatalogueBatchHandler.go has no equivalent either.
 	updates := map[string]interface{}{}
-	if _, ok := raw["client_id"]; ok {
-		updates["client_id"] = body.ClientId
-	}
 	if _, ok := raw["item_name"]; ok {
 		updates["item_name"] = body.ItemName
 	}
@@ -116,7 +118,7 @@ func UpdateClientItem(c *gin.Context) {
 
 	if len(updates) > 0 {
 		if err := db.Model(&existing).Updates(updates).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			dbError(c, err)
 			return
 		}
 	}
@@ -239,7 +241,7 @@ func UploadClientItemPhoto(c *gin.Context) {
 	// ?v=<timestamp> makes browsers fetch the replaced photo.
 	photoPath := fmt.Sprintf("/uploads/client-items/%s?v=%d", filename, time.Now().UnixMilli())
 	if err := db.Model(&existing).Update("photo_path", photoPath).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		dbError(c, err)
 		return
 	}
 
@@ -271,7 +273,7 @@ func DeleteClientItemPhoto(c *gin.Context) {
 	// Map-based Updates (not struct-based) so a nil value is actually
 	// written as NULL rather than silently skipped as a Go zero value.
 	if err := db.Model(&existing).Updates(map[string]interface{}{"photo_path": nil}).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		dbError(c, err)
 		return
 	}
 

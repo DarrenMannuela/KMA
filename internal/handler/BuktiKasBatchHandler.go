@@ -46,7 +46,7 @@ var buktiKasItemFields = map[string]func() interface{}{
 func PostBuktiKasBatch(c *gin.Context) {
 	var b BuktiKasBatch
 	if err := c.ShouldBindBodyWithJSON(&b); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON: " + err.Error()})
+		bindError(c, err)
 		return
 	}
 	size := len(b.NewHeaders) + len(b.Headers) + len(b.HeaderUpdate) + len(b.ItemCreate) + len(b.ItemUpdate) + len(b.ItemDelete)
@@ -66,7 +66,7 @@ func PostBuktiKasBatch(c *gin.Context) {
 	case errors.As(err, &be):
 		c.JSON(be.status, gin.H{"error": be.msg})
 	case err != nil:
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Saving failed: " + err.Error()})
+		dbError(c, err)
 	default:
 		c.JSON(http.StatusOK, res)
 	}
@@ -117,11 +117,10 @@ func applyBuktiKasBatch(tx *gorm.DB, b *BuktiKasBatch, res *BuktiKasBatchResult)
 		if err := tx.Where("id = ?", p.Id).First(&before).Error; err != nil {
 			return batchError{http.StatusNotFound, fmt.Sprintf("Bukti Kas line %d not found", p.Id)}
 		}
-		if err := patchItem(tx, &dto.BuktiKasItem{}, p, buktiKasItemFields); err != nil {
+		if err := patchItem(tx, &dto.BuktiKasItem{}, p, buktiKasItemFields, needBuktiKasHeader); err != nil {
 			return err
 		}
 		res.ItemsBefore = append(res.ItemsBefore, before)
-		touched[before.HeaderId] = true
 	}
 
 	if len(b.ItemDelete) > 0 {
@@ -138,9 +137,10 @@ func applyBuktiKasBatch(tx *gorm.DB, b *BuktiKasBatch, res *BuktiKasBatchResult)
 		res.ItemsDeleted = gone
 	}
 
-	// A Bukti Kas left with no lines is removed with its last line — same
-	// "the header is only ever implicit, never a thing on its own" rule
-	// FinanceBatch applies to Kas Bon.
+	// A Bukti Kas left with no lines is removed with its last line, same as
+	// FinanceBatch — but, as there, only when this request's own explicit
+	// delete emptied it (touched is only set by ItemDelete above), never
+	// merely because a reparent moved its last line elsewhere.
 	for id := range touched {
 		var n int64
 		tx.Model(&dto.BuktiKasItem{}).Where("header_id = ?", id).Count(&n)

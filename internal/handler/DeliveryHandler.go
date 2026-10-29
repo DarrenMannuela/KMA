@@ -15,7 +15,7 @@ func GetDelivery(c *gin.Context) {
 
 	results := db.Find(&deliveries)
 	if results.Error != nil {
-		c.JSON(500, gin.H{"error": results.Error.Error()})
+		dbError(c, results.Error)
 		return
 	}
 	c.JSON(200, deliveries)
@@ -132,7 +132,7 @@ func UpdateDelivery(c *gin.Context) {
 	// UpdateOrders: required both to hit the right row and to trigger any
 	// ON UPDATE CASCADE if delivery_item has an FK to this id.
 	if err := db.Model(&dto.Delivery{}).Where("id = ?", existing.Id).Updates(updates).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		dbError(c, err)
 		return
 	}
 

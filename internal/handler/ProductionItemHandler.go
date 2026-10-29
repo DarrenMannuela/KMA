@@ -13,7 +13,7 @@ func GetProductionItems(c *gin.Context) {
 	db := Connect()
 
 	if err := db.Find(&items).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		dbError(c, err)
 		return
 	}
 
@@ -32,7 +32,7 @@ func GetProductionItemsByHeader(c *gin.Context) {
 	db := Connect()
 
 	if err := db.Where("header_id = ?", headerId).Find(&items).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		dbError(c, err)
 		return
 	}
 
@@ -44,7 +44,7 @@ func GetProductionItemsGrouped(c *gin.Context) {
 	db := Connect()
 
 	if err := db.Find(&items).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		dbError(c, err)
 		return
 	}
 

@@ -14,7 +14,7 @@ func GetClients(c *gin.Context) {
 
 	results := db.Find(&clients)
 	if results.Error != nil {
-		c.JSON(500, gin.H{"error": results.Error.Error()})
+		dbError(c, results.Error)
 		return
 	}
 
@@ -87,7 +87,7 @@ func UpdateClient(c *gin.Context) {
 
 	if len(updates) > 0 {
 		if err := db.Model(&existing).Updates(updates).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			dbError(c, err)
 			return
 		}
 	}

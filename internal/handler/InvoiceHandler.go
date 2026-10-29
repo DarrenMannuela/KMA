@@ -13,7 +13,7 @@ func GetInvoice(c *gin.Context) {
 	db := Connect()
 	result := db.Find(&invoices)
 	if result.Error != nil {
-		c.JSON(500, gin.H{"error": result.Error.Error()})
+		dbError(c, result.Error)
 		return
 	}
 	c.JSON(200, invoices)
@@ -34,7 +34,7 @@ func PostInvoice(c *gin.Context) {
 	var newInvoice dto.Invoice
 	db := Connect()
 	if err := c.ShouldBindBodyWithJSON(&newInvoice); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		bindError(c, err)
 		return
 	}
 
@@ -147,7 +147,7 @@ func UpdateInvoice(c *gin.Context) {
 	}
 
 	if err := db.Model(&dto.Invoice{}).Where("id = ?", existing.Id).Updates(updates).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		dbError(c, err)
 		return
 	}
 

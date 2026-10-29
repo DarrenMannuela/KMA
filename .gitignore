@@ -40,3 +40,11 @@ id_ed25519*
 
 # OS noise (you're on macOS)
 .DS_Store
+
+# Local AI-agent tooling (skills, hooks, agent configs) — personal/
+# machine-specific, not something every clone of this repo should inherit.
+.claude/
+.agents/
+.codex/
+.impeccable/
+skills-lock.json

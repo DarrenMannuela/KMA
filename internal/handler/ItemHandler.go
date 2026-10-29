@@ -16,7 +16,7 @@ func GetItems(c *gin.Context) {
 
 	results := db.Find(&items)
 	if results.Error != nil {
-		c.JSON(500, gin.H{"error": results.Error.Error()})
+		dbError(c, results.Error)
 		return
 	}
 
@@ -43,7 +43,7 @@ func GetItemsByOrder(c *gin.Context) {
 	db := Connect()
 	result := db.Where("order_id = ?", id).Find(&items)
 	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		dbError(c, result.Error)
 		return
 	}
 	c.JSON(200, items)
@@ -187,7 +187,7 @@ func UpdateItems(c *gin.Context) {
 		// primary key (Id), which we never mutated — so this always
 		// targets the right row regardless of what's in `updates`.
 		if err := db.Model(&existing).Updates(updates).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			dbError(c, err)
 			return
 		}
 	}
