@@ -14,13 +14,19 @@ import (
 
 const supplierDocumentDir = "./uploads/supplier-documents"
 
+// Not every supplier has a clean catalogue/price-list PDF — an embroidery
+// supplier, for instance, may only have photos of its materials — so a
+// plain photo is accepted here too, not just a PDF.
 var allowedDocumentExt = map[string]bool{
-	".pdf": true,
+	".pdf":  true,
+	".jpg":  true,
+	".jpeg": true,
+	".png":  true,
 }
 
-// 20MB cap — a scanned catalogue or price-list PDF runs larger than a
-// product photo, but still small enough that a handful of uploads won't
-// fill the disk.
+// 20MB cap — a scanned catalogue/price-list PDF or a full-res photo runs
+// larger than a product photo's own 5MB cap, but still small enough that a
+// handful of uploads won't fill the disk.
 const maxDocumentSize = 20 << 20
 
 // GetSupplierDocumentsBySupplier lists one supplier's catalogue/price-list
@@ -51,8 +57,9 @@ func documentFilePath(filePath string) (path string, ok bool) {
 	return filepath.Join(supplierDocumentDir, name), true
 }
 
-// UploadSupplierDocument attaches a new catalogue/price-list PDF to a
-// supplier. Unlike a client-item photo, a supplier can have several, so
+// UploadSupplierDocument attaches a new catalogue/price-list document (a
+// PDF, or a plain photo for a supplier with nothing cleaner) to a supplier.
+// Unlike a client-item photo, a supplier can have several, so
 // each upload adds a new row and file rather than replacing one — the row
 // is created first so the file on disk can be named by its own id, which
 // can never collide between two documents of the same supplier.
@@ -79,7 +86,7 @@ func UploadSupplierDocument(c *gin.Context) {
 
 	ext := strings.ToLower(filepath.Ext(file.Filename))
 	if !allowedDocumentExt[ext] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported file type — only PDF is accepted"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported file type — use pdf, jpg, jpeg, or png"})
 		return
 	}
 

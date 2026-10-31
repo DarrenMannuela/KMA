@@ -41,8 +41,9 @@ func uploadFile(t *testing.T, r *gin.Engine, path, field, filename string, conte
 	return w
 }
 
-// A supplier's catalogue PDF can be uploaded, listed, downloaded, and
-// deleting it removes both the row and the file on disk.
+// A supplier's catalogue PDF (or, for a supplier with nothing cleaner, a
+// plain photo) can be uploaded, listed, downloaded, and deleting one
+// removes both its row and its file on disk.
 func TestSupplierDocumentUpload(t *testing.T) {
 	r := supplierDocumentRouter()
 	sid := testSupplier(t)
@@ -61,9 +62,14 @@ func TestSupplierDocumentUpload(t *testing.T) {
 		t.Fatalf("file not saved to disk: %v", err)
 	}
 
-	// Only PDF is accepted.
+	// A plain photo is accepted too — not every supplier has a clean PDF.
+	if w := uploadFile(t, r, "/supplier/"+sid+"/document", "file", "materials.jpg", []byte("fake jpeg")); w.Code != http.StatusOK {
+		t.Errorf("photo upload: %d, want 200", w.Code)
+	}
+
+	// An arbitrary file type is still rejected.
 	if w := uploadFile(t, r, "/supplier/"+sid+"/document", "file", "notes.txt", []byte("hi")); w.Code != http.StatusBadRequest {
-		t.Errorf("non-pdf upload: %d, want 400", w.Code)
+		t.Errorf("unsupported file type: %d, want 400", w.Code)
 	}
 
 	// A document needs a real supplier.
@@ -71,11 +77,11 @@ func TestSupplierDocumentUpload(t *testing.T) {
 		t.Errorf("bogus supplier: %d, want 404", w.Code)
 	}
 
-	// by-supplier finds it.
+	// by-supplier finds both.
 	w = callOn(t, r, http.MethodGet, "/supplier-document/by-supplier?supplier_id="+sid, "")
 	var docs []dto.SupplierDocument
 	json.Unmarshal(w.Body.Bytes(), &docs)
-	if len(docs) != 1 || docs[0].Id != doc.Id {
+	if len(docs) != 2 {
 		t.Errorf("by-supplier: %+v", docs)
 	}
 

@@ -2,10 +2,12 @@ package dto
 
 import "time"
 
-// A supplier's own catalogue or price-list PDF. A supplier can have several
-// (a catalogue and a separate price list, or one per year/edition), so this
-// is its own table rather than a single column on Supplier — unlike a
-// client-item photo, uploading a new one adds a row instead of replacing it.
+// A supplier's own catalogue or price-list document — a PDF, or a plain
+// photo of the materials for a supplier (an embroidery shop, say) with
+// nothing cleaner. A supplier can have several (a catalogue and a separate
+// price list, or one per year/edition), so this is its own table rather
+// than a single column on Supplier — unlike a client-item photo, uploading
+// a new one adds a row instead of replacing it.
 type SupplierDocument struct {
 	Id         uint64    `gorm:"primaryKey" json:"id"`
 	SupplierId uint64    `json:"supplier_id" gorm:"not null;index"`
