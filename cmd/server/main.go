@@ -91,6 +91,33 @@ func main() {
 		v1.PATCH("/supplier/*id", handler.UpdateSupplier)
 		v1.DELETE("/supplier/*id", handler.DeleteSupplier)
 
+		// Supplier catalogue — materials and, per material, colour swatches.
+		// Database-backed counterpart to the frontend's hard-coded SAI
+		// catalogue (src/data/saiCatalogue.ts): any other supplier's
+		// materials/colours/prices are entered here instead of shipped in
+		// a release.
+		v1.GET("/supplier-material", handler.GetSupplierMaterials)
+		v1.GET("/supplier-material/by-supplier", handler.GetSupplierMaterialsBySupplier)
+		v1.GET("/supplier-material/:id", handler.GetSupplierMaterialByID)
+		v1.POST("/supplier-material", handler.PostSupplierMaterial)
+		v1.PATCH("/supplier-material/:id", handler.UpdateSupplierMaterial)
+		v1.DELETE("/supplier-material/:id", handler.DeleteSupplierMaterial)
+
+		v1.GET("/supplier-material-color", handler.GetSupplierMaterialColors)
+		v1.GET("/supplier-material-color/by-material", handler.GetSupplierMaterialColorsByMaterial)
+		v1.GET("/supplier-material-color/grouped", handler.GetSupplierMaterialColorsGrouped)
+		v1.POST("/supplier-material-color", handler.PostSupplierMaterialColor)
+		v1.PATCH("/supplier-material-color/:id", handler.UpdateSupplierMaterialColor)
+		v1.DELETE("/supplier-material-color/:id", handler.DeleteSupplierMaterialColor)
+
+		// Supplier documents — the catalogue/price-list PDFs themselves, as
+		// opposed to the structured materials/colours above. A supplier can
+		// have several (POST adds, it never replaces), served back through
+		// the same /uploads static route as client-item photos.
+		v1.GET("/supplier-document/by-supplier", handler.GetSupplierDocumentsBySupplier)
+		v1.POST("/supplier/:id/document", handler.UploadSupplierDocument)
+		v1.DELETE("/supplier-document/:id", handler.DeleteSupplierDocument)
+
 		// Finance Header Entry — shared parent for Production and Operation
 		// Kas Bons. Filter by type with ?type=production or ?type=operation.
 		v1.GET("/finance-header", handler.GetFinanceHeaders)

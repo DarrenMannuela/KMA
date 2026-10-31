@@ -37,7 +37,7 @@ database), `uploads/` (client-item photos), `backups/`, and `.env`.
 
 ## Data model
 
-Fifteen entities, each with its own handler file in `internal/handler/`:
+Seventeen entities, each with its own handler file in `internal/handler/`:
 
 - **Orders → Items → Invoice** — an order carries line items and gets
   invoiced (dp/pelunasan split, tracked via `Invoice.Type`).
@@ -53,7 +53,10 @@ Fifteen entities, each with its own handler file in `internal/handler/`:
   Production quantities are decimals (2.5 meters).
 - **Budget** (a monthly limit per scope and category) and
   **RecurringCost** (rent, salaries… posted once a month as one Kas Bon).
-- **Supplier** — standalone.
+- **Supplier → SupplierMaterial → SupplierMaterialColor** — each supplier
+  has its own catalogue: materials (with a current price) and each
+  material's colours, cascade-deleted down the chain (dropping a material
+  drops its colours; dropping a supplier drops both).
 
 Most `id` columns are client-chosen sequential strings (e.g.
 `"003/KMA/26"`), not auto-increment — so every create/rename path has
@@ -84,6 +87,11 @@ so a partial update never zeroes out the rest of the row.
   (with their prices), prices set or removed for a year, items removed.
   Every item and price must belong to that client. The response has what
   was created and each touched price as it was, for undo.
+- `/api/v1/supplier-material` (CRUD + `/by-supplier`) and
+  `/api/v1/supplier-material-color` (CRUD + `/by-material`, `/grouped`) —
+  one supplier's materials, colours and current price per material; the
+  frontend merges every supplier's catalogue with SAI's built-in one for
+  its Kas Bon colour picker and swatch.
 - `GET/PUT /api/v1/budget`, `/api/v1/recurring-cost` (CRUD) and
   `POST /api/v1/recurring-cost/post-month` (adds the month's Kas Bon;
   posting a month twice adds nothing).

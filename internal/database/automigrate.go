@@ -26,6 +26,20 @@ func AutoMigrate() error {
 	if err != nil {
 		return err
 	}
+	// SupplierMaterial/SupplierMaterialColor FK supplier_id, so they must
+	// migrate right after Supplier itself.
+	err = db.AutoMigrate(&dto.SupplierMaterial{})
+	if err != nil {
+		return err
+	}
+	err = db.AutoMigrate(&dto.SupplierMaterialColor{})
+	if err != nil {
+		return err
+	}
+	err = db.AutoMigrate(&dto.SupplierDocument{})
+	if err != nil {
+		return err
+	}
 	err = db.AutoMigrate(&dto.FinanceHeader{})
 	if err != nil {
 		return err
