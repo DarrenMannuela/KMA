@@ -6,6 +6,7 @@ import (
 
 	"github.com/DarrenMannuela/KMA/dto"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func GetClients(c *gin.Context) {
@@ -100,18 +101,15 @@ func UpdateClient(c *gin.Context) {
 	c.JSON(http.StatusOK, updated)
 }
 
+// DeleteClient removes a client with their contacts and catalogue; their
+// orders and deliveries stay, unlinked. Kept for Undo (see TrashHandler.go).
 func DeleteClient(c *gin.Context) {
 	id := c.Param("id")
-	db := Connect()
-
-	result := db.Where("id = ?", id).Delete(&dto.Client{})
-	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Delete failed"})
-		return
-	}
-	if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Client not found"})
-		return
-	}
-	c.Status(http.StatusNoContent)
+	deleteWithTrash(c, "client", id, "Client not found", func(tx *gorm.DB) (any, error) {
+		snap, err := snapshotClient(tx, id)
+		if err != nil {
+			return nil, err
+		}
+		return snap, tx.Where("id = ?", id).Delete(&dto.Client{}).Error
+	})
 }

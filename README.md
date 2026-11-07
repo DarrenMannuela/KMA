@@ -37,7 +37,7 @@ database), `uploads/` (client-item photos), `backups/`, and `.env`.
 
 ## Data model
 
-Seventeen entities, each with its own handler file in `internal/handler/`:
+Twenty-one entities, each with its own handler file in `internal/handler/`:
 
 - **Orders → Items → Invoice** — an order carries line items and gets
   invoiced (dp/pelunasan split, tracked via `Invoice.Type`).
@@ -53,10 +53,15 @@ Seventeen entities, each with its own handler file in `internal/handler/`:
   Production quantities are decimals (2.5 meters).
 - **Budget** (a monthly limit per scope and category) and
   **RecurringCost** (rent, salaries… posted once a month as one Kas Bon).
-- **Supplier → SupplierMaterial → SupplierMaterialColor** — each supplier
-  has its own catalogue: materials (with a current price) and each
-  material's colours, cascade-deleted down the chain (dropping a material
-  drops its colours; dropping a supplier drops both).
+- **BuktiKasHeader → BuktiKasItem** — cash received, line by line; a line
+  can point at the order it was for.
+- **Supplier → SupplierMaterial → SupplierMaterialColor**, and
+  **SupplierDocument** — each supplier has its own catalogue: materials
+  (with a current price) and each material's colours, plus its catalogue
+  or price-list files (PDF or photos), all cascade-deleted with it.
+- **DeletedRecord** — what a delete of an order, invoice, delivery, client
+  or supplier removed, kept 30 days so Undo can put it back (see
+  `TrashHandler.go`).
 
 Most `id` columns are client-chosen sequential strings (e.g.
 `"003/KMA/26"`), not auto-increment — so every create/rename path has
@@ -89,9 +94,18 @@ so a partial update never zeroes out the rest of the row.
   was created and each touched price as it was, for undo.
 - `/api/v1/supplier-material` (CRUD + `/by-supplier`) and
   `/api/v1/supplier-material-color` (CRUD + `/by-material`, `/grouped`) —
-  one supplier's materials, colours and current price per material; the
-  frontend merges every supplier's catalogue with SAI's built-in one for
-  its Kas Bon colour picker and swatch.
+  one supplier's materials, colours and current price per material, which
+  the frontend's Kas Bon colour picker and swatch read for every supplier
+  (SAI's included). `GET /supplier-document/by-supplier`,
+  `POST /supplier/:id/document` and `DELETE /supplier-document/:id` hold
+  its catalogue/price-list files (PDF, JPG or PNG, 20MB each).
+- Deleting an order, invoice, delivery, client or supplier still answers
+  `204`, now with an `X-Restore-Id` header. `POST /api/v1/trash/:id/restore`
+  puts the record back with everything the delete took along (an order's
+  items, invoices and deliveries, and its Kas Bon links; a client's contacts
+  and catalogue, and the orders and deliveries it was linked to) in one
+  transaction. It answers `409` when something with the same number was
+  added since, or an invoice's order is gone, and `404` once restored.
 - `GET/PUT /api/v1/budget`, `/api/v1/recurring-cost` (CRUD) and
   `POST /api/v1/recurring-cost/post-month` (adds the month's Kas Bon;
   posting a month twice adds nothing).

@@ -118,6 +118,10 @@ func main() {
 		v1.POST("/supplier/:id/document", handler.UploadSupplierDocument)
 		v1.DELETE("/supplier-document/:id", handler.DeleteSupplierDocument)
 
+		// Undo for a deleted order, invoice, delivery, client or supplier: the
+		// delete's 204 carries X-Restore-Id; this puts it all back.
+		v1.POST("/trash/:id/restore", handler.RestoreDeleted)
+
 		// Finance Header Entry — shared parent for Production and Operation
 		// Kas Bons. Filter by type with ?type=production or ?type=operation.
 		v1.GET("/finance-header", handler.GetFinanceHeaders)

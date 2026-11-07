@@ -6,6 +6,7 @@ import (
 
 	"github.com/DarrenMannuela/KMA/dto"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func GetInvoice(c *gin.Context) {
@@ -161,15 +162,11 @@ func UpdateInvoice(c *gin.Context) {
 
 func DeleteInvoice(c *gin.Context) {
 	id := getID(c)
-	db := Connect()
-	result := db.Where("id = ?", id).Delete(&dto.Invoice{})
-	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Delete failed"})
-		return
-	}
-	if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Invoice not found"})
-		return
-	}
-	c.Status(http.StatusNoContent)
+	deleteWithTrash(c, "invoice", id, "Invoice not found", func(tx *gorm.DB) (any, error) {
+		snap, err := snapshotInvoice(tx, id)
+		if err != nil {
+			return nil, err
+		}
+		return snap, tx.Where("id = ?", id).Delete(&dto.Invoice{}).Error
+	})
 }

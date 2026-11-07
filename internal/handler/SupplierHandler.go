@@ -105,20 +105,15 @@ func UpdateSupplier(c *gin.Context) {
 	c.JSON(http.StatusOK, updated)
 }
 
+// DeleteSupplier removes a supplier with its catalogue and documents (their
+// files stay on disk, so Undo can bring them back too).
 func DeleteSupplier(c *gin.Context) {
 	id := strings.TrimPrefix(c.Param("id"), "/")
-	db := Connect()
-
-	result := db.Where("id = ?", id).Delete(&dto.Supplier{})
-	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Delete failed"})
-		return
-	}
-
-	if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Supplier not found"})
-		return
-	}
-
-	c.Status(http.StatusNoContent)
+	deleteWithTrash(c, "supplier", id, "Supplier not found", func(tx *gorm.DB) (any, error) {
+		snap, err := snapshotSupplier(tx, id)
+		if err != nil {
+			return nil, err
+		}
+		return snap, tx.Where("id = ?", id).Delete(&dto.Supplier{}).Error
+	})
 }

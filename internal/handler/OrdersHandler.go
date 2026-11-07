@@ -147,29 +147,21 @@ func UpdateOrders(c *gin.Context) {
 	c.JSON(http.StatusOK, updated)
 }
 
+// DeleteOrders removes an order with its items, invoices and deliveries; its
+// Kas Bon lines stay, unlinked. Everything removed is kept for Undo (see
+// TrashHandler.go).
 func DeleteOrders(c *gin.Context) {
 	id := getID(c)
-	db := Connect()
-
-	var result *gorm.DB
-	err := db.Transaction(func(tx *gorm.DB) error {
-		result = tx.Where("id = ?", id).Delete(&dto.Orders{})
-		if result.Error != nil || result.RowsAffected == 0 {
-			return result.Error
+	deleteWithTrash(c, "order", id, "Order not found", func(tx *gorm.DB) (any, error) {
+		snap, err := snapshotOrder(tx, id)
+		if err != nil {
+			return nil, err
 		}
-		return relinkCosts(tx, id, nil) // the costs stay, unlinked
+		if err := tx.Where("id = ?", id).Delete(&dto.Orders{}).Error; err != nil {
+			return nil, err
+		}
+		return snap, relinkCosts(tx, id, nil) // the costs stay, unlinked
 	})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Delete failed"})
-		return
-	}
-
-	if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
-		return
-	}
-
-	c.Status(http.StatusNoContent)
 }
 
 // relinkCosts moves every cost line linked to order `from` to order `to`
