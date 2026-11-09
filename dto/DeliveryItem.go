@@ -2,7 +2,7 @@ package dto
 
 type DeliveryItem struct {
 	Id         uint64   `json:"id" gorm:"primaryKey"`
-	DeliveryId string   `json:"delivery_id"`
+	DeliveryId string   `json:"delivery_id" gorm:"index"`
 	ItemName   string   `json:"item_name"` // physical item OR document name
 	Size       *string  `json:"size"`      // null for SJ documents
 	Amount     int      `json:"amount"`

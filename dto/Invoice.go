@@ -4,7 +4,7 @@ import "time"
 
 type Invoice struct {
 	Id      string `json:"id" gorm:"primaryKey"`
-	OrderId string `json:"order_id"`
+	OrderId string `json:"order_id" gorm:"index"`
 	Type    string `json:"type"` // "dp" or "pelunasan"
 
 	// Client details at time of invoice

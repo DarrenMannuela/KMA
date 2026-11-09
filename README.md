@@ -124,6 +124,12 @@ Fails closed: if the key isn't configured, or the auth service is
 unreachable, or the session doesn't validate, the request is rejected
 here — not left to nginx or the frontend to enforce.
 
+A "valid" answer is reused for 15 seconds (keyed by a SHA-256 of the
+cookie, at most 1,000 entries), which removes the auth round trip from
+most of a page load's API calls. The trade-off, agreed with the owner: a
+logout, deactivation or single-device sign-out reaches this API up to 15
+seconds late. Refusals and auth-service errors are never reused.
+
 ## Running locally
 
 ```bash

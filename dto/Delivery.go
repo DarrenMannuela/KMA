@@ -11,9 +11,9 @@ type Delivery struct {
 	PhoneNumber     *string        `json:"phone_number"`
 	ContactPerson   *string        `json:"contact_person"`
 	Date            time.Time      `json:"date"`
-	OrderId         *string        `json:"order_id"`
+	OrderId         *string        `json:"order_id" gorm:"index"`
 	Orders          Orders         `json:"-" gorm:"foreignKey:OrderId;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	ClientId        *uint64        `json:"client_id"`
+	ClientId        *uint64        `json:"client_id" gorm:"index"`
 	ClientContactId *uint64        `json:"client_contact_id"`
 	Client          *Client        `json:"-" gorm:"foreignKey:ClientId;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 	ClientContact   *ClientContact `json:"-" gorm:"foreignKey:ClientContactId;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`

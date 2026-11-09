@@ -2,10 +2,12 @@ package middleware
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"log"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -27,6 +29,71 @@ func mustGetEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// A "valid" answer from KMA-auth is reused for sessionCacheTTL instead of
+// asking again on every API call: each ask is an HTTP hop plus database work
+// on the auth side, and one page load makes about ten of them. The cost,
+// agreed with the owner, is that a logout, deactivation or single-device
+// sign-out reaches this API up to 15 seconds late (logout already clears the
+// browser's cookie at once). Only valid answers are cached, never a refusal
+// or an auth-service error, and the key is a hash of the cookie, never the
+// cookie itself.
+const (
+	sessionCacheTTL = 15 * time.Second
+	sessionCacheMax = 1000
+)
+
+type cachedSession struct {
+	id      uint
+	email   string
+	role    string
+	expires time.Time
+}
+
+var sessionCache = struct {
+	sync.Mutex
+	m map[[32]byte]cachedSession
+}{m: map[[32]byte]cachedSession{}}
+
+func cachedValid(key [32]byte, now time.Time) (cachedSession, bool) {
+	sessionCache.Lock()
+	defer sessionCache.Unlock()
+	s, ok := sessionCache.m[key]
+	if !ok {
+		return cachedSession{}, false
+	}
+	if now.After(s.expires) {
+		delete(sessionCache.m, key)
+		return cachedSession{}, false
+	}
+	return s, true
+}
+
+func rememberValid(key [32]byte, s cachedSession) {
+	sessionCache.Lock()
+	defer sessionCache.Unlock()
+	if len(sessionCache.m) >= sessionCacheMax {
+		now := time.Now()
+		for k, v := range sessionCache.m {
+			if now.After(v.expires) {
+				delete(sessionCache.m, k)
+			}
+		}
+		if len(sessionCache.m) >= sessionCacheMax {
+			sessionCache.m = map[[32]byte]cachedSession{}
+		}
+	}
+	sessionCache.m[key] = s
+}
+
+func setIdentity(c *gin.Context, id uint, email, role string) {
+	// Stash identity on the context so handlers (or RequireRole
+	// below) can use it — e.g. for audit logging who created an
+	// order, or restricting admin-only routes.
+	c.Set("user_id", id)
+	c.Set("user_email", email)
+	c.Set("user_role", role)
 }
 
 type validateRequest struct {
@@ -63,6 +130,13 @@ func RequireAuth() gin.HandlerFunc {
 			return
 		}
 
+		key := sha256.Sum256([]byte(raw))
+		if s, ok := cachedValid(key, time.Now()); ok {
+			setIdentity(c, s.id, s.email, s.role)
+			c.Next()
+			return
+		}
+
 		resp, err := askAuthService(raw)
 		if err != nil {
 			// Auth service down/unreachable even after a retry — fail
@@ -93,12 +167,8 @@ func RequireAuth() gin.HandlerFunc {
 			return
 		}
 
-		// Stash identity on the context so handlers (or RequireRole
-		// below) can use it — e.g. for audit logging who created an
-		// order, or restricting admin-only routes.
-		c.Set("user_id", vr.User.ID)
-		c.Set("user_email", vr.User.Email)
-		c.Set("user_role", vr.User.Role)
+		rememberValid(key, cachedSession{id: vr.User.ID, email: vr.User.Email, role: vr.User.Role, expires: time.Now().Add(sessionCacheTTL)})
+		setIdentity(c, vr.User.ID, vr.User.Email, vr.User.Role)
 		c.Next()
 	}
 }
