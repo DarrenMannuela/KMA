@@ -1,7 +1,14 @@
 package handler
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -28,6 +35,83 @@ var allowedDocumentExt = map[string]bool{
 // larger than a product photo's own 5MB cap, but still small enough that a
 // handful of uploads won't fill the disk.
 const maxDocumentSize = 20 << 20
+
+// What each allowed ending must really contain, by the file's first bytes
+// (http.DetectContentType), not by its name: a renamed file that isn't
+// really a PDF or photo is refused.
+var documentContentType = map[string]string{
+	".pdf":  "application/pdf",
+	".jpg":  "image/jpeg",
+	".jpeg": "image/jpeg",
+	".png":  "image/png",
+}
+
+// A photo bigger than this many pixels is refused before it's decoded: a
+// phone photo is ~12-50 million; this only stops a file built to eat memory.
+const maxDocumentPixels = 100_000_000
+
+// checkDocumentFile opens the upload and makes sure it is what its name
+// says and that it opens: a photo must decode completely (a cut-off or
+// damaged one doesn't), and a PDF must start like one and end with its
+// end-of-file marker (a cut-off download doesn't). The error is shown to
+// the person uploading, so it says what to do.
+func checkDocumentFile(fh *multipart.FileHeader, ext string) error {
+	f, err := fh.Open()
+	if err != nil {
+		return errors.New("Couldn't read the file. Try uploading it again.")
+	}
+	defer f.Close()
+
+	head := make([]byte, 512)
+	n, _ := io.ReadFull(f, head)
+	head = head[:n]
+	if n == 0 {
+		return errors.New("The file is empty.")
+	}
+	want := documentContentType[ext]
+	if got := http.DetectContentType(head); !strings.HasPrefix(got, want) {
+		kind := strings.ToUpper(strings.TrimPrefix(ext, "."))
+		return fmt.Errorf("This file is named .%s but isn't really a %s. Export or save it again as a real %s and upload that.", strings.TrimPrefix(ext, "."), kind, kind)
+	}
+
+	if want == "application/pdf" {
+		// The end-of-file marker sits in the last few bytes; allow some
+		// trailing whitespace or junk after it, as real PDFs often have.
+		size := fh.Size
+		tailLen := int64(2048)
+		if size < tailLen {
+			tailLen = size
+		}
+		tail := make([]byte, tailLen)
+		if _, err := f.ReadAt(tail, size-tailLen); err != nil && err != io.EOF {
+			return errors.New("Couldn't read the file. Try uploading it again.")
+		}
+		if !bytes.Contains(tail, []byte("%%EOF")) {
+			return errors.New("This PDF looks incomplete (it may have been cut off while downloading). Download it again and upload the new copy.")
+		}
+		return nil
+	}
+
+	// A photo: its size first (cheap), then a full decode, which is what
+	// catches a cut-off or damaged image.
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return errors.New("Couldn't read the file. Try uploading it again.")
+	}
+	cfg, _, err := image.DecodeConfig(f)
+	if err != nil {
+		return errors.New("This photo is damaged and can't be opened. Take or export it again.")
+	}
+	if cfg.Width*cfg.Height > maxDocumentPixels {
+		return errors.New("This photo is too large to open (over 100 megapixels). Save a smaller copy and upload that.")
+	}
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return errors.New("Couldn't read the file. Try uploading it again.")
+	}
+	if _, _, err := image.Decode(f); err != nil {
+		return errors.New("This photo is incomplete or damaged and can't be opened fully. Take or export it again.")
+	}
+	return nil
+}
 
 // GetSupplierDocumentsBySupplier lists one supplier's catalogue/price-list
 // documents, newest first.
@@ -87,6 +171,11 @@ func UploadSupplierDocument(c *gin.Context) {
 	ext := strings.ToLower(filepath.Ext(file.Filename))
 	if !allowedDocumentExt[ext] {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported file type — use pdf, jpg, jpeg, or png"})
+		return
+	}
+
+	if err := checkDocumentFile(file, ext); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 

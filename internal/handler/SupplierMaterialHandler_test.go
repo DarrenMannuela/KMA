@@ -70,6 +70,27 @@ func TestSupplierMaterialCatalogue(t *testing.T) {
 	var col dto.SupplierMaterialColor
 	json.Unmarshal(w.Body.Bytes(), &col)
 
+	// A new colour starts available; switching it off sticks, leaves its
+	// other fields alone, and switching it back on works too.
+	if col.Unavailable {
+		t.Errorf("new colour is unavailable: %+v", col)
+	}
+	colId := itoa(uint(col.Id))
+	for _, off := range []bool{true, false} {
+		body := `{"unavailable": false}`
+		if off {
+			body = `{"unavailable": true}`
+		}
+		if w := callOn(t, r, http.MethodPatch, "/supplier-material-color/"+colId, body); w.Code != http.StatusOK {
+			t.Fatalf("set unavailable=%v: %d %s", off, w.Code, w.Body.String())
+		}
+		var got dto.SupplierMaterialColor
+		Connect().First(&got, col.Id)
+		if got.Unavailable != off || got.Hex != "#1e293b" || got.Code != "01" {
+			t.Errorf("after unavailable=%v: %+v", off, got)
+		}
+	}
+
 	// Duplicate (material, code) is rejected.
 	if w := callOn(t, r, http.MethodPost, "/supplier-material-color", `{"supplier_material_id": `+matId+`, "code": "01", "hex": "#000"}`); w.Code != http.StatusInternalServerError {
 		t.Errorf("duplicate colour: %d, want 500", w.Code)

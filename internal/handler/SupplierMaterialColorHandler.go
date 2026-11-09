@@ -113,6 +113,9 @@ func UpdateSupplierMaterialColor(c *gin.Context) {
 	if _, ok := raw["hex"]; ok {
 		updates["hex"] = body.Hex
 	}
+	if _, ok := raw["unavailable"]; ok {
+		updates["unavailable"] = body.Unavailable
+	}
 
 	if len(updates) > 0 {
 		if err := db.Model(&existing).Updates(updates).Error; err != nil {

@@ -96,9 +96,15 @@ so a partial update never zeroes out the rest of the row.
   `/api/v1/supplier-material-color` (CRUD + `/by-material`, `/grouped`) —
   one supplier's materials, colours and current price per material, which
   the frontend's Kas Bon colour picker and swatch read for every supplier
-  (SAI's included). `GET /supplier-document/by-supplier`,
+  (SAI's included). A colour's `unavailable` (default `false`) marks one
+  the supplier no longer has: it stays in the catalogue, since old Kas Bon
+  lines name it, but the picker won't offer it. `GET /supplier-document/by-supplier`,
   `POST /supplier/:id/document` and `DELETE /supplier-document/:id` hold
-  its catalogue/price-list files (PDF, JPG or PNG, 20MB each).
+  its catalogue/price-list files (PDF, JPG or PNG, 20MB each). An upload is
+  checked by what it contains, not its name: a renamed file that isn't
+  really a PDF/JPG/PNG, a PDF missing its end (cut off while downloading),
+  and a photo that won't decode fully are refused with a `400` saying what
+  to do.
 - Deleting an order, invoice, delivery, client or supplier still answers
   `204`, now with an `X-Restore-Id` header. `POST /api/v1/trash/:id/restore`
   puts the record back with everything the delete took along (an order's
