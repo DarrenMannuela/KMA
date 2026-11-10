@@ -114,6 +114,15 @@ func main() {
 		// opposed to the structured materials/colours above. A supplier can
 		// have several (POST adds, it never replaces), served back through
 		// the same /uploads static route as client-item photos.
+		// A bordir/sablon supplier's designs (logos, slogans) with their photos.
+		v1.GET("/supplier-design", handler.GetSupplierDesigns)
+		v1.GET("/supplier-design/by-supplier", handler.GetSupplierDesignsBySupplier)
+		v1.POST("/supplier-design", handler.PostSupplierDesign)
+		v1.PATCH("/supplier-design/:id", handler.UpdateSupplierDesign)
+		v1.DELETE("/supplier-design/:id", handler.DeleteSupplierDesign)
+		v1.POST("/supplier-design/:id/photo", handler.UploadSupplierDesignPhoto)
+		v1.DELETE("/supplier-design/:id/photo", handler.DeleteSupplierDesignPhoto)
+
 		v1.GET("/supplier-document/by-supplier", handler.GetSupplierDocumentsBySupplier)
 		v1.POST("/supplier/:id/document", handler.UploadSupplierDocument)
 		v1.DELETE("/supplier-document/:id", handler.DeleteSupplierDocument)

@@ -62,6 +62,7 @@ type supplierSnapshot struct {
 	Materials []dto.SupplierMaterial      `json:"materials"`
 	Colors    []dto.SupplierMaterialColor `json:"colors"`
 	Documents []dto.SupplierDocument      `json:"documents"`
+	Designs   []dto.SupplierDesign        `json:"designs"`
 }
 
 // restoreConflict is a restore that would clash with what's there now; its
@@ -169,7 +170,11 @@ func snapshotSupplier(tx *gorm.DB, id string) (supplierSnapshot, error) {
 			return s, err
 		}
 	}
-	err := tx.Where("supplier_id = ?", id).Find(&s.Documents).Error
+	if err := tx.Where("supplier_id = ?", id).Find(&s.Documents).Error; err != nil {
+		return s, err
+	}
+	// Their photo files stay on disk with the row gone, so a restore finds them.
+	err := tx.Where("supplier_id = ?", id).Find(&s.Designs).Error
 	return s, err
 }
 
@@ -387,7 +392,10 @@ func restoreSupplier(tx *gorm.DB, s supplierSnapshot) error {
 	if err := insert(tx, s.Colors); err != nil {
 		return err
 	}
-	return insert(tx, s.Documents)
+	if err := insert(tx, s.Documents); err != nil {
+		return err
+	}
+	return insert(tx, s.Designs)
 }
 
 func restoreRecord(tx *gorm.DB, rec dto.DeletedRecord) error {

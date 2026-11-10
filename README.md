@@ -100,8 +100,15 @@ so a partial update never zeroes out the rest of the row.
   the supplier no longer has: it stays in the catalogue, since old Kas Bon
   lines name it, but the picker won't offer it. `GET /supplier-document/by-supplier`,
   `POST /supplier/:id/document` and `DELETE /supplier-document/:id` hold
-  its catalogue/price-list files (PDF, JPG or PNG, 20MB each). An upload is
-  checked by what it contains, not its name: a renamed file that isn't
+  its catalogue/price-list files (PDF, JPG or PNG, 20MB each).
+  `/api/v1/supplier-design` (CRUD + `/by-supplier`) holds a bordir or sablon
+  supplier's designs (name, placement, size, price per piece, notes); each
+  design's photo goes up with `POST /supplier-design/:id/photo` (form field
+  `photo`, a real JPG or PNG up to 10MB, checked the same way as catalogue
+  files) into `uploads/supplier-designs`, and comes off with
+  `DELETE /supplier-design/:id/photo` or when the design is deleted. A name,
+  placement and size can only appear once per supplier. Undoing a supplier's
+  delete brings its designs back too. A catalogue upload is checked by what it contains, not its name: a renamed file that isn't
   really a PDF/JPG/PNG, a PDF missing its end (cut off while downloading),
   and a photo that won't decode fully are refused with a `400` saying what
   to do.

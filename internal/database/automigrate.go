@@ -32,6 +32,10 @@ func AutoMigrate() error {
 	if err != nil {
 		return err
 	}
+	err = db.AutoMigrate(&dto.SupplierDesign{})
+	if err != nil {
+		return err
+	}
 	err = db.AutoMigrate(&dto.SupplierMaterialColor{})
 	if err != nil {
 		return err
