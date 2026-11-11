@@ -115,6 +115,10 @@ func main() {
 		// have several (POST adds, it never replaces), served back through
 		// the same /uploads static route as client-item photos.
 		// A bordir/sablon supplier's designs (logos, slogans) with their photos.
+		// Print layouts: one per document (invoice, kwitansi, sj, do), shared by everyone.
+		v1.GET("/print-layout", handler.GetPrintLayouts)
+		v1.PUT("/print-layout/:type", handler.PutPrintLayout)
+		v1.DELETE("/print-layout/:type", handler.DeletePrintLayout)
 		v1.GET("/supplier-design", handler.GetSupplierDesigns)
 		v1.GET("/supplier-design/by-supplier", handler.GetSupplierDesignsBySupplier)
 		v1.POST("/supplier-design", handler.PostSupplierDesign)

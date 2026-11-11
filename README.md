@@ -112,6 +112,12 @@ so a partial update never zeroes out the rest of the row.
   really a PDF/JPG/PNG, a PDF missing its end (cut off while downloading),
   and a photo that won't decode fully are refused with a `400` saying what
   to do.
+- `/api/v1/print-layout` holds how each printed document is laid out, one
+  for everyone per document: `GET` lists the saved ones, `PUT
+  /print-layout/:type` (`invoice`, `kwitansi`, `sj` or `do`) saves
+  `{"settings": {...}}` (an object, up to 8KB; the frontend fills in and
+  limits each value), and `DELETE /print-layout/:type` goes back to the
+  document's built-in layout. Stored in `print_layouts`.
 - Deleting an order, invoice, delivery, client or supplier still answers
   `204`, now with an `X-Restore-Id` header. `POST /api/v1/trash/:id/restore`
   puts the record back with everything the delete took along (an order's
