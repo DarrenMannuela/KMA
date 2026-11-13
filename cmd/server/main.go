@@ -115,6 +115,9 @@ func main() {
 		// have several (POST adds, it never replaces), served back through
 		// the same /uploads static route as client-item photos.
 		// A bordir/sablon supplier's designs (logos, slogans) with their photos.
+		// An invoice's sheet layout and formatting (widths, folds, bold, fills…), shared by everyone.
+		v1.GET("/invoice-sheet", handler.GetInvoiceSheet)
+		v1.PUT("/invoice-sheet", handler.PutInvoiceSheet)
 		// Print layouts: one per document (invoice, kwitansi, sj, do), shared by everyone.
 		v1.GET("/print-layout", handler.GetPrintLayouts)
 		v1.PUT("/print-layout/:type", handler.PutPrintLayout)

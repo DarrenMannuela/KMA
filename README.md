@@ -112,6 +112,11 @@ so a partial update never zeroes out the rest of the row.
   really a PDF/JPG/PNG, a PDF missing its end (cut off while downloading),
   and a photo that won't decode fully are refused with a `400` saying what
   to do.
+- `/api/v1/invoice-sheet?invoice_id=…` holds one invoice's item-table
+  layout and formatting, shared by everyone: `GET` answers `settings: null`
+  until something is saved, `PUT` saves `{"settings": {...}}` (an object up
+  to 64KB, for an invoice that exists). Stored in `invoice_sheets`. A query
+  parameter rather than a path segment, since invoice ids contain slashes.
 - `/api/v1/print-layout` holds how each printed document is laid out, one
   for everyone per document: `GET` lists the saved ones, `PUT
   /print-layout/:type` (`invoice`, `kwitansi`, `sj` or `do`) saves
