@@ -79,6 +79,17 @@ func PutInvoiceSheet(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "settings must be an object"})
 		return
 	}
+	// Nothing set (every part empty, e.g. after Clear all formatting): the
+	// invoice is back to the defaults, so its row goes rather than storing
+	// an empty layout.
+	if allEmpty(asObject) {
+		if err := db.Where("invoice_id = ?", id).Delete(&dto.InvoiceSheet{}).Error; err != nil {
+			dbError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, invoiceSheetResponse{InvoiceId: id, Settings: json.RawMessage("null")})
+		return
+	}
 	row := dto.InvoiceSheet{InvoiceId: id, Settings: compact.String(), UpdatedAt: time.Now()}
 	if err := db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "invoice_id"}},
@@ -88,4 +99,29 @@ func PutInvoiceSheet(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, invoiceSheetResponse{InvoiceId: id, Settings: json.RawMessage(row.Settings), UpdatedAt: &row.UpdatedAt})
+}
+
+// allEmpty says whether every part of a layout is unset: null, "", or an
+// empty object or list.
+func allEmpty(settings map[string]any) bool {
+	for _, v := range settings {
+		switch x := v.(type) {
+		case nil:
+		case string:
+			if x != "" {
+				return false
+			}
+		case map[string]any:
+			if len(x) > 0 {
+				return false
+			}
+		case []any:
+			if len(x) > 0 {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
 }

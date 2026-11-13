@@ -27,6 +27,7 @@ type orderSnapshot struct {
 	Order           dto.Orders         `json:"order"`
 	Items           []dto.Items        `json:"items"`
 	Invoices        []dto.Invoice      `json:"invoices"`
+	InvoiceSheets   []savedSheet       `json:"invoice_sheets,omitempty"` // their print-page formatting
 	Deliveries      []dto.Delivery     `json:"deliveries"`
 	DeliveryItems   []dto.DeliveryItem `json:"delivery_items"`
 	ProductionLinks []uint             `json:"production_links"` // Kas Bon lines the delete unlinked
@@ -35,6 +36,27 @@ type orderSnapshot struct {
 
 type invoiceSnapshot struct {
 	Invoice dto.Invoice `json:"invoice"`
+	Sheet   *savedSheet `json:"sheet,omitempty"` // its print-page formatting, if any
+}
+
+// savedSheet is an invoice's formatting as a snapshot keeps it (dto.InvoiceSheet
+// leaves its settings out of JSON, so it can't be stored as is).
+type savedSheet struct {
+	InvoiceId string    `json:"invoice_id"`
+	Settings  string    `json:"settings"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func sheetsOf(tx *gorm.DB, ids []string) ([]savedSheet, error) {
+	var rows []dto.InvoiceSheet
+	if err := tx.Where("invoice_id IN ?", ids).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]savedSheet, len(rows))
+	for i, r := range rows {
+		out[i] = savedSheet{InvoiceId: r.InvoiceId, Settings: r.Settings, UpdatedAt: r.UpdatedAt}
+	}
+	return out, nil
 }
 
 type deliverySnapshot struct {
@@ -82,6 +104,17 @@ func snapshotOrder(tx *gorm.DB, id string) (orderSnapshot, error) {
 	if err := tx.Where("order_id = ?", id).Find(&s.Invoices).Error; err != nil {
 		return s, err
 	}
+	if len(s.Invoices) > 0 {
+		ids := make([]string, len(s.Invoices))
+		for i, inv := range s.Invoices {
+			ids[i] = inv.Id
+		}
+		sheets, err := sheetsOf(tx, ids)
+		if err != nil {
+			return s, err
+		}
+		s.InvoiceSheets = sheets
+	}
 	if err := tx.Where("order_id = ?", id).Find(&s.Deliveries).Error; err != nil {
 		return s, err
 	}
@@ -103,8 +136,30 @@ func snapshotOrder(tx *gorm.DB, id string) (orderSnapshot, error) {
 
 func snapshotInvoice(tx *gorm.DB, id string) (invoiceSnapshot, error) {
 	var s invoiceSnapshot
-	err := tx.Where("id = ?", id).First(&s.Invoice).Error
-	return s, err
+	if err := tx.Where("id = ?", id).First(&s.Invoice).Error; err != nil {
+		return s, err
+	}
+	sheets, err := sheetsOf(tx, []string{id})
+	if err != nil {
+		return s, err
+	}
+	if len(sheets) > 0 {
+		s.Sheet = &sheets[0]
+	}
+	return s, nil
+}
+
+// putSheets brings back deleted invoices' formatting, replacing any an
+// invoice of the same id was given since.
+func putSheets(tx *gorm.DB, sheets []savedSheet) error {
+	rows := make([]dto.InvoiceSheet, len(sheets))
+	for i, sh := range sheets {
+		if err := tx.Where("invoice_id = ?", sh.InvoiceId).Delete(&dto.InvoiceSheet{}).Error; err != nil {
+			return err
+		}
+		rows[i] = dto.InvoiceSheet{InvoiceId: sh.InvoiceId, Settings: sh.Settings, UpdatedAt: sh.UpdatedAt}
+	}
+	return insert(tx, rows)
 }
 
 func snapshotDelivery(tx *gorm.DB, id string) (deliverySnapshot, error) {
@@ -280,6 +335,7 @@ func restoreOrder(tx *gorm.DB, s orderSnapshot) error {
 	for _, step := range []func() error{
 		func() error { return insert(tx, s.Items) },
 		func() error { return insert(tx, s.Invoices) },
+		func() error { return putSheets(tx, s.InvoiceSheets) },
 		func() error { return insert(tx, s.Deliveries) },
 		func() error { return insert(tx, s.DeliveryItems) },
 	} {
@@ -314,7 +370,13 @@ func restoreInvoice(tx *gorm.DB, s invoiceSnapshot) error {
 		}
 		return restoreConflict{fmt.Sprintf("Order %s no longer exists; put it back first.", s.Invoice.OrderId)}
 	}
-	return insert(tx, []dto.Invoice{s.Invoice})
+	if err := insert(tx, []dto.Invoice{s.Invoice}); err != nil {
+		return err
+	}
+	if s.Sheet != nil {
+		return putSheets(tx, []savedSheet{*s.Sheet})
+	}
+	return nil
 }
 
 func restoreDelivery(tx *gorm.DB, s deliverySnapshot) error {

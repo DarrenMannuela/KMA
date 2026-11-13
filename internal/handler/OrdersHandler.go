@@ -160,6 +160,12 @@ func DeleteOrders(c *gin.Context) {
 		if err := tx.Where("id = ?", id).Delete(&dto.Orders{}).Error; err != nil {
 			return nil, err
 		}
+		// The invoices' formatting goes with them (kept in the snapshot for Undo).
+		for _, inv := range snap.Invoices {
+			if err := tx.Where("invoice_id = ?", inv.Id).Delete(&dto.InvoiceSheet{}).Error; err != nil {
+				return nil, err
+			}
+		}
 		return snap, relinkCosts(tx, id, nil) // the costs stay, unlinked
 	})
 }

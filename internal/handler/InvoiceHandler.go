@@ -147,7 +147,21 @@ func UpdateInvoice(c *gin.Context) {
 		updates["status"] = body.Status
 	}
 
-	if err := db.Model(&dto.Invoice{}).Where("id = ?", existing.Id).Updates(updates).Error; err != nil {
+	// One transaction, so a renamed invoice never loses its print-page
+	// formatting: the sheet moves to the new number with it.
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&dto.Invoice{}).Where("id = ?", existing.Id).Updates(updates).Error; err != nil {
+			return err
+		}
+		if newId == existing.Id {
+			return nil
+		}
+		// A sheet left under the new number (its invoice long gone) gives way.
+		if err := tx.Where("invoice_id = ?", newId).Delete(&dto.InvoiceSheet{}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&dto.InvoiceSheet{}).Where("invoice_id = ?", existing.Id).Update("invoice_id", newId).Error
+	}); err != nil {
 		dbError(c, err)
 		return
 	}
@@ -167,6 +181,10 @@ func DeleteInvoice(c *gin.Context) {
 		if err != nil {
 			return nil, err
 		}
-		return snap, tx.Where("id = ?", id).Delete(&dto.Invoice{}).Error
+		if err := tx.Where("id = ?", id).Delete(&dto.Invoice{}).Error; err != nil {
+			return nil, err
+		}
+		// Its formatting goes too (kept in the snapshot for Undo).
+		return snap, tx.Where("invoice_id = ?", id).Delete(&dto.InvoiceSheet{}).Error
 	})
 }

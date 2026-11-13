@@ -117,6 +117,12 @@ so a partial update never zeroes out the rest of the row.
   until something is saved, `PUT` saves `{"settings": {...}}` (an object up
   to 64KB, for an invoice that exists). Stored in `invoice_sheets`. A query
   parameter rather than a path segment, since invoice ids contain slashes.
+  A `PUT` whose every part is empty deletes the row instead (answering
+  `settings: null`), so an invoice back at the defaults stores nothing.
+  Renaming an invoice moves its row to the new id in the same transaction.
+  Deleting an invoice or its order deletes its row too, keeping it in the
+  bin snapshot so Undo restores it. Start-up removes any row whose invoice
+  no longer exists.
 - `/api/v1/print-layout` holds how each printed document is laid out, one
   for everyone per document: `GET` lists the saved ones, `PUT
   /print-layout/:type` (`invoice`, `kwitansi`, `sj` or `do`) saves

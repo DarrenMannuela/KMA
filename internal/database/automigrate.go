@@ -103,5 +103,10 @@ func AutoMigrate() error {
 	if err != nil {
 		return err
 	}
-	return db.AutoMigrate(&dto.Budget{}, &dto.RecurringCost{}, &dto.DeletedRecord{}, &dto.PrintLayout{}, &dto.InvoiceSheet{})
+	if err := db.AutoMigrate(&dto.Budget{}, &dto.RecurringCost{}, &dto.DeletedRecord{}, &dto.PrintLayout{}, &dto.InvoiceSheet{}); err != nil {
+		return err
+	}
+	// Formatting whose invoice is gone (deleted or renamed before sheets
+	// followed their invoice) would never be read again.
+	return db.Exec("DELETE FROM invoice_sheets WHERE invoice_id NOT IN (SELECT id FROM invoices)").Error
 }

@@ -81,6 +81,7 @@ func TestDeleteAndRestore(t *testing.T) {
 	seed(t, &dto.Orders{Id: orderId, Date: date, ClientId: &client.Id, ClientContactId: &contact.Id})
 	seed(t, &dto.Items{OrderId: orderId, ItemName: "KEMEJA", Size: &size, Amount: 10, Price: 125000, SubTotal: 1250000})
 	seed(t, &dto.Invoice{Id: "950/INV/91", OrderId: orderId, Type: "dp", Total: 1250000, Tanggal: date, Status: "unpaid"})
+	seed(t, &dto.InvoiceSheet{InvoiceId: "950/INV/91", Settings: `{"rows":{"total":{"bold":true}}}`, UpdatedAt: date})
 	seed(t, &dto.Delivery{Id: "950/DO/91", Type: "do", Address: "JL TEST", Date: date, OrderId: &orderId})
 	seed(t, &dto.DeliveryItem{DeliveryId: "950/DO/91", ItemName: "KEMEJA", Amount: 10})
 	res := batch(t, `{
@@ -108,6 +109,9 @@ func TestDeleteAndRestore(t *testing.T) {
 	if count(t, &dto.DeliveryItem{}, "delivery_id = ?", "950/DO/91") != 0 {
 		t.Fatal("order delete left delivery items")
 	}
+	if count(t, &dto.InvoiceSheet{}, "invoice_id = ?", "950/INV/91") != 0 {
+		t.Fatal("order delete left its invoice's formatting")
+	}
 
 	// Undo the client first, then the order: both relink in either order.
 	restore(t, r, clientRestore, http.StatusOK)
@@ -120,6 +124,9 @@ func TestDeleteAndRestore(t *testing.T) {
 		count(t, &dto.DeliveryItem{}, "delivery_id = ?", "950/DO/91") != 1 {
 		t.Error("order restore lost rows")
 	}
+	if count(t, &dto.InvoiceSheet{}, "invoice_id = ? AND settings LIKE ?", "950/INV/91", "%bold%") != 1 {
+		t.Error("order restore lost its invoice's formatting")
+	}
 	if count(t, &dto.ProductionItem{}, "id = ? AND order_id = ?", lineId, orderId) != 1 {
 		t.Error("order restore didn't relink its Kas Bon line")
 	}
@@ -129,6 +136,9 @@ func TestDeleteAndRestore(t *testing.T) {
 
 	// An invoice can't come back without its order.
 	invRestore := deleteForRestore(t, r, "/invoice/"+url.PathEscape("950/INV/91"))
+	if count(t, &dto.InvoiceSheet{}, "invoice_id = ?", "950/INV/91") != 0 {
+		t.Fatal("invoice delete left its formatting")
+	}
 	deleteForRestore(t, r, "/order/"+url.PathEscape(orderId))
 	restore(t, r, invRestore, http.StatusConflict)
 
