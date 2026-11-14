@@ -185,9 +185,13 @@ func DeleteOrders(c *gin.Context) {
 		if err := tx.Where("id = ?", id).Delete(&dto.Orders{}).Error; err != nil {
 			return nil, err
 		}
-		// The invoices' formatting goes with them (kept in the snapshot for Undo).
+		// The invoices' formatting goes with them (kept in the snapshot for
+		// Undo); Bukti Kas lines that paid them stay, no longer pointing at them.
 		for _, inv := range snap.Invoices {
 			if err := tx.Where("invoice_id = ?", inv.Id).Delete(&dto.InvoiceSheet{}).Error; err != nil {
+				return nil, err
+			}
+			if err := tx.Model(&dto.BuktiKasItem{}).Where("invoice_id = ?", inv.Id).Update("invoice_id", nil).Error; err != nil {
 				return nil, err
 			}
 		}
@@ -195,10 +199,10 @@ func DeleteOrders(c *gin.Context) {
 	})
 }
 
-// relinkCosts moves every cost line linked to order `from` to order `to`
-// (nil unlinks them).
+// relinkCosts moves every cost line (and Bukti Kas line) linked to order
+// `from` to order `to` (nil unlinks them).
 func relinkCosts(tx *gorm.DB, from string, to *string) error {
-	for _, model := range []interface{}{&dto.ProductionItem{}, &dto.OperationItem{}} {
+	for _, model := range []interface{}{&dto.ProductionItem{}, &dto.OperationItem{}, &dto.BuktiKasItem{}} {
 		if err := tx.Model(model).Where("order_id = ?", from).Update("order_id", to).Error; err != nil {
 			return err
 		}

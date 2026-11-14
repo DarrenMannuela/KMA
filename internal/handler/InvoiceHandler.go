@@ -151,6 +151,16 @@ func UpdateInvoice(c *gin.Context) {
 		updates["paid_date"] = body.PaidDate
 	}
 	if _, ok := raw["status"]; ok {
+		// Paid by a Bukti Kas line: it's unpaid again only by unlinking that
+		// line, so the two can't disagree.
+		if body.Status != "paid" && existing.Status == "paid" {
+			var linked int64
+			db.Model(&dto.BuktiKasItem{}).Where("invoice_id = ?", existing.Id).Count(&linked)
+			if linked > 0 {
+				c.JSON(http.StatusConflict, gin.H{"error": "This invoice is paid by a Bukti Kas line. Unlink or delete that line to make it unpaid."})
+				return
+			}
+		}
 		updates["status"] = body.Status
 	}
 
@@ -167,7 +177,11 @@ func UpdateInvoice(c *gin.Context) {
 		if err := tx.Where("invoice_id = ?", newId).Delete(&dto.InvoiceSheet{}).Error; err != nil {
 			return err
 		}
-		return tx.Model(&dto.InvoiceSheet{}).Where("invoice_id = ?", existing.Id).Update("invoice_id", newId).Error
+		if err := tx.Model(&dto.InvoiceSheet{}).Where("invoice_id = ?", existing.Id).Update("invoice_id", newId).Error; err != nil {
+			return err
+		}
+		// Bukti Kas lines paying it point at the new number too.
+		return tx.Model(&dto.BuktiKasItem{}).Where("invoice_id = ?", existing.Id).Update("invoice_id", newId).Error
 	}); err != nil {
 		dbError(c, err)
 		return
@@ -189,6 +203,11 @@ func DeleteInvoice(c *gin.Context) {
 			return nil, err
 		}
 		if err := tx.Where("id = ?", id).Delete(&dto.Invoice{}).Error; err != nil {
+			return nil, err
+		}
+		// Bukti Kas lines that paid it stay (the cash came in) but no longer
+		// point at it.
+		if err := tx.Model(&dto.BuktiKasItem{}).Where("invoice_id = ?", id).Update("invoice_id", nil).Error; err != nil {
 			return nil, err
 		}
 		// Its formatting goes too (kept in the snapshot for Undo).

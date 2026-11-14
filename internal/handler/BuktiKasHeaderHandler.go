@@ -6,6 +6,7 @@ import (
 
 	"github.com/DarrenMannuela/KMA/dto"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func GetBuktiKasHeaders(c *gin.Context) {
@@ -123,8 +124,25 @@ func DeleteBuktiKasHeader(c *gin.Context) {
 	id := getID(c)
 	db := Connect()
 
-	result := db.Where("id = ?", id).Delete(&dto.BuktiKasHeader{})
-	if result.Error != nil {
+	// Its lines go with it (ON DELETE CASCADE): what they paid is unpaid again.
+	var result *gorm.DB
+	err := db.Transaction(func(tx *gorm.DB) error {
+		var lines []dto.BuktiKasItem
+		if err := tx.Where("header_id = ?", id).Find(&lines).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("header_id = ?", id).Delete(&dto.BuktiKasItem{}).Error; err != nil {
+			return err
+		}
+		result = tx.Where("id = ?", id).Delete(&dto.BuktiKasHeader{})
+		if result.Error != nil {
+			return result.Error
+		}
+		invoices := map[string]bool{}
+		linkedInvoices(lines, invoices)
+		return reconcileInvoicePayments(tx, invoices)
+	})
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Delete failed"})
 		return
 	}

@@ -29,9 +29,9 @@ type BuktiKasBatchResult struct {
 	HeadersCreated []dto.BuktiKasHeader `json:"headers_created"`
 	HeadersDeleted []dto.BuktiKasHeader `json:"headers_deleted"`
 	HeadersBefore  []dto.BuktiKasHeader `json:"headers_before"`
-	Items          []dto.BuktiKasItem  `json:"items"`
-	ItemsBefore    []dto.BuktiKasItem  `json:"items_before"`
-	ItemsDeleted   []dto.BuktiKasItem  `json:"items_deleted"`
+	Items          []dto.BuktiKasItem   `json:"items"`
+	ItemsBefore    []dto.BuktiKasItem   `json:"items_before"`
+	ItemsDeleted   []dto.BuktiKasItem   `json:"items_deleted"`
 }
 
 const maxBuktiKasBatch = 2000
@@ -41,6 +41,7 @@ var buktiKasItemFields = map[string]func() interface{}{
 	"description": func() interface{} { return new(string) },
 	"price":       func() interface{} { return new(int64) },
 	"order_id":    func() interface{} { return new(*string) },
+	"invoice_id":  func() interface{} { return new(*string) },
 }
 
 func PostBuktiKasBatch(c *gin.Context) {
@@ -74,6 +75,8 @@ func PostBuktiKasBatch(c *gin.Context) {
 
 func applyBuktiKasBatch(tx *gorm.DB, b *BuktiKasBatch, res *BuktiKasBatchResult) error {
 	touched := map[string]bool{}
+	// Invoices whose payment may have changed: set paid / unpaid at the end.
+	invoices := map[string]bool{}
 
 	for _, h := range b.NewHeaders {
 		if err := createBuktiKasHeader(tx, h, true, res); err != nil {
@@ -98,6 +101,12 @@ func applyBuktiKasBatch(tx *gorm.DB, b *BuktiKasBatch, res *BuktiKasBatchResult)
 			Updates(map[string]interface{}{"date": h.Date, "description": h.Description}).Error; err != nil {
 			return err
 		}
+		// A new date moves the paid date of what its lines pay.
+		var lines []dto.BuktiKasItem
+		if err := tx.Where("header_id = ?", h.Id).Find(&lines).Error; err != nil {
+			return err
+		}
+		linkedInvoices(lines, invoices)
 		res.HeadersBefore = append(res.HeadersBefore, before)
 	}
 
@@ -106,6 +115,16 @@ func applyBuktiKasBatch(tx *gorm.DB, b *BuktiKasBatch, res *BuktiKasBatchResult)
 			return err
 		}
 		item.Header = dto.BuktiKasHeader{}
+		if item.InvoiceId != nil && *item.InvoiceId != "" {
+			order, err := checkInvoiceLink(tx, *item.InvoiceId, item.OrderId, 0)
+			if err != nil {
+				return err
+			}
+			item.OrderId = &order
+			invoices[*item.InvoiceId] = true
+		} else {
+			item.InvoiceId = nil
+		}
 		if err := tx.Omit("Header").Create(&item).Error; err != nil {
 			return err
 		}
@@ -121,6 +140,29 @@ func applyBuktiKasBatch(tx *gorm.DB, b *BuktiKasBatch, res *BuktiKasBatchResult)
 			return err
 		}
 		res.ItemsBefore = append(res.ItemsBefore, before)
+		linkedInvoices([]dto.BuktiKasItem{before}, invoices)
+		var after dto.BuktiKasItem
+		if err := tx.Where("id = ?", p.Id).First(&after).Error; err != nil {
+			return err
+		}
+		if after.InvoiceId != nil && *after.InvoiceId == "" {
+			after.InvoiceId = nil
+			if err := tx.Model(&dto.BuktiKasItem{}).Where("id = ?", p.Id).Update("invoice_id", nil).Error; err != nil {
+				return err
+			}
+		}
+		if after.InvoiceId != nil {
+			order, err := checkInvoiceLink(tx, *after.InvoiceId, after.OrderId, after.Id)
+			if err != nil {
+				return err
+			}
+			if after.OrderId == nil || *after.OrderId != order {
+				if err := tx.Model(&dto.BuktiKasItem{}).Where("id = ?", p.Id).Update("order_id", order).Error; err != nil {
+					return err
+				}
+			}
+			invoices[*after.InvoiceId] = true
+		}
 	}
 
 	if len(b.ItemDelete) > 0 {
@@ -134,6 +176,7 @@ func applyBuktiKasBatch(tx *gorm.DB, b *BuktiKasBatch, res *BuktiKasBatchResult)
 		for _, item := range gone {
 			touched[item.HeaderId] = true
 		}
+		linkedInvoices(gone, invoices)
 		res.ItemsDeleted = gone
 	}
 
@@ -156,7 +199,7 @@ func applyBuktiKasBatch(tx *gorm.DB, b *BuktiKasBatch, res *BuktiKasBatchResult)
 		}
 		res.HeadersDeleted = append(res.HeadersDeleted, h)
 	}
-	return nil
+	return reconcileInvoicePayments(tx, invoices)
 }
 
 func createBuktiKasHeader(tx *gorm.DB, h dto.BuktiKasHeader, mustBeNew bool, res *BuktiKasBatchResult) error {

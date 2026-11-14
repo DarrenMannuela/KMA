@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/DarrenMannuela/KMA/dto"
@@ -58,6 +59,10 @@ func PostItems(c *gin.Context) {
 		return
 	}
 
+	if itemRefused(c, db, newItem.OrderId) {
+		return
+	}
+
 	// Upsert on idx_items_dedupe (order_id, item_name, size, price): the same
 	// item again adds its amount and sub_total to the existing row, atomically,
 	// for every caller.
@@ -73,6 +78,11 @@ func PostItems(c *gin.Context) {
 
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database insert failed"})
+		return
+	}
+	// Its invoices follow the new total.
+	if err := syncOrderInvoices(db, newItem.OrderId); err != nil {
+		dbError(c, err)
 		return
 	}
 
@@ -182,6 +192,14 @@ func UpdateItems(c *gin.Context) {
 		}
 	}
 
+	newOrder := existing.OrderId
+	if v, ok := updates["order_id"].(string); ok {
+		newOrder = v
+	}
+	if itemRefused(c, db, existing.OrderId, newOrder) {
+		return
+	}
+
 	if len(updates) > 0 {
 		// db.Model(&existing) anchors the WHERE clause to existing's
 		// primary key (Id), which we never mutated — so this always
@@ -189,6 +207,16 @@ func UpdateItems(c *gin.Context) {
 		if err := db.Model(&existing).Updates(updates).Error; err != nil {
 			dbError(c, err)
 			return
+		}
+		// The order's invoices (and a previous order's, if it moved) follow.
+		for _, o := range []string{existing.OrderId, newOrder} {
+			if err := syncOrderInvoices(db, o); err != nil {
+				dbError(c, err)
+				return
+			}
+			if newOrder == existing.OrderId {
+				break
+			}
 		}
 	}
 
@@ -204,6 +232,11 @@ func DeleteItems(c *gin.Context) {
 	id := c.Param("id")
 	db := Connect()
 
+	var existing dto.Items
+	if err := db.Where("id = ?", id).First(&existing).Error; err == nil && itemRefused(c, db, existing.OrderId) {
+		return
+	}
+
 	result := db.Where("id = ?", id).Delete(&dto.Items{})
 
 	if result.Error != nil {
@@ -215,6 +248,26 @@ func DeleteItems(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Item not found"})
 		return
 	}
+	if err := syncOrderInvoices(db, existing.OrderId); err != nil {
+		dbError(c, err)
+		return
+	}
 
 	c.Status(http.StatusNoContent)
+}
+
+// itemRefused answers 409 when an item's order is cancelled (a cancelled
+// order takes no item changes), and reports whether it did.
+func itemRefused(c *gin.Context, db *gorm.DB, orderIds ...string) bool {
+	err := refuseIfCancelled(db, orderIds...)
+	if err == nil {
+		return false
+	}
+	var ce cancelledOrderError
+	if errors.As(err, &ce) {
+		c.JSON(http.StatusConflict, gin.H{"error": ce.Error()})
+		return true
+	}
+	dbError(c, err)
+	return true
 }

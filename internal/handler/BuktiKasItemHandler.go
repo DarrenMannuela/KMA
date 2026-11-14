@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"errors"
+	"gorm.io/gorm"
 	"net/http"
 	"strconv"
 
@@ -69,8 +71,24 @@ func PostBuktiKasItem(c *gin.Context) {
 		return
 	}
 
-	if err := db.Create(&item).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database insert failed"})
+	err := db.Transaction(func(tx *gorm.DB) error {
+		if item.InvoiceId != nil && *item.InvoiceId != "" {
+			order, err := checkInvoiceLink(tx, *item.InvoiceId, item.OrderId, 0)
+			if err != nil {
+				return err
+			}
+			item.OrderId = &order
+		} else {
+			item.InvoiceId = nil
+		}
+		if err := tx.Create(&item).Error; err != nil {
+			return err
+		}
+		invoices := map[string]bool{}
+		linkedInvoices([]dto.BuktiKasItem{item}, invoices)
+		return reconcileInvoicePayments(tx, invoices)
+	})
+	if respondBuktiKasError(c, err, "Database insert failed") {
 		return
 	}
 
@@ -102,8 +120,27 @@ func UpdateBuktiKasItem(c *gin.Context) {
 	// updating this row.
 	existing.Id = originalId
 
-	if err := db.Save(&existing).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Update failed"})
+	var before dto.BuktiKasItem
+	db.First(&before, "id = ?", id)
+	err = db.Transaction(func(tx *gorm.DB) error {
+		if existing.InvoiceId != nil && *existing.InvoiceId == "" {
+			existing.InvoiceId = nil
+		}
+		if existing.InvoiceId != nil {
+			order, err := checkInvoiceLink(tx, *existing.InvoiceId, existing.OrderId, existing.Id)
+			if err != nil {
+				return err
+			}
+			existing.OrderId = &order
+		}
+		if err := tx.Save(&existing).Error; err != nil {
+			return err
+		}
+		invoices := map[string]bool{}
+		linkedInvoices([]dto.BuktiKasItem{before, existing}, invoices)
+		return reconcileInvoicePayments(tx, invoices)
+	})
+	if respondBuktiKasError(c, err, "Update failed") {
 		return
 	}
 
@@ -119,8 +156,21 @@ func DeleteBuktiKasItem(c *gin.Context) {
 	}
 
 	db := Connect()
-	result := db.Where("id = ?", id).Delete(&dto.BuktiKasItem{})
-	if result.Error != nil {
+	var result *gorm.DB
+	err = db.Transaction(func(tx *gorm.DB) error {
+		var gone []dto.BuktiKasItem
+		if err := tx.Where("id = ?", id).Find(&gone).Error; err != nil {
+			return err
+		}
+		result = tx.Where("id = ?", id).Delete(&dto.BuktiKasItem{})
+		if result.Error != nil {
+			return result.Error
+		}
+		invoices := map[string]bool{}
+		linkedInvoices(gone, invoices)
+		return reconcileInvoicePayments(tx, invoices)
+	})
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Delete failed"})
 		return
 	}
@@ -131,4 +181,20 @@ func DeleteBuktiKasItem(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+// respondBuktiKasError answers a failed write: a link that isn't allowed
+// with its own status and message, anything else as fallback. It reports
+// whether it answered.
+func respondBuktiKasError(c *gin.Context, err error, fallback string) bool {
+	if err == nil {
+		return false
+	}
+	var be batchError
+	if errors.As(err, &be) {
+		c.JSON(be.status, gin.H{"error": be.msg})
+		return true
+	}
+	c.JSON(http.StatusInternalServerError, gin.H{"error": fallback})
+	return true
 }

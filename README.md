@@ -118,6 +118,18 @@ so a partial update never zeroes out the rest of the row.
   left alone). `{"cancelled_at": null}` reactivates it: the reason is
   cleared and its `cancelled` invoices go back to `unpaid`. `POST
   /api/v1/invoice` for a cancelled order is refused with `409`.
+- Items and invoices stay in line: `POST`/`PATCH`/`DELETE /api/v1/item` recompute
+  the order's invoices (total, `down_payment`, `remaining`, `ar_receivable`)
+  in the same request. Items of a cancelled order can't be changed, and a
+  delivery can't be made for one (`409`).
+- A Bukti Kas line can carry `invoice_id`: that invoice is then `paid`, with
+  `paid_date` the Bukti Kas date (the earliest, if several lines pay it).
+  Only an unpaid invoice of the line's order can be linked (the line takes
+  the invoice's order). Unlinking, deleting the line or its Bukti Kas makes
+  the invoice `unpaid` again, and `PATCH /invoice` can't set it unpaid while
+  a line pays it (`409`). Renaming an invoice moves the link; deleting it
+  clears it. Renaming or deleting an order carries its Bukti Kas lines along
+  like its Kas Bon lines (and Undo relinks them).
 - `/api/v1/invoice-sheet?invoice_id=…` holds one invoice's item-table
   layout and formatting, shared by everyone: `GET` answers `settings: null`
   until something is saved, `PUT` saves `{"settings": {...}}` (an object up

@@ -44,6 +44,11 @@ func PostDelivery(c *gin.Context) {
 		return
 	}
 
+	// A cancelled order isn't delivered.
+	if newDeliveries.OrderId != nil && itemRefused(c, db, *newDeliveries.OrderId) {
+		return
+	}
+
 	// As PostOrders: delivery IDs are suggested by clients too, so a clash
 	// answers 409.
 	var conflict dto.Delivery
@@ -98,6 +103,9 @@ func UpdateDelivery(c *gin.Context) {
 	}
 
 	updates := map[string]interface{}{"id": newId}
+	if _, ok := raw["order_id"]; ok && body.OrderId != nil && (existing.OrderId == nil || *existing.OrderId != *body.OrderId) && itemRefused(c, db, *body.OrderId) {
+		return
+	}
 	if _, ok := raw["type"]; ok {
 		updates["type"] = body.Type
 	}

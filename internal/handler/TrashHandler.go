@@ -32,6 +32,7 @@ type orderSnapshot struct {
 	DeliveryItems   []dto.DeliveryItem `json:"delivery_items"`
 	ProductionLinks []uint             `json:"production_links"` // Kas Bon lines the delete unlinked
 	OperationLinks  []uint             `json:"operation_links"`
+	BuktiKasLinks   []uint             `json:"bukti_kas_links,omitempty"` // Bukti Kas lines the delete unlinked
 }
 
 type invoiceSnapshot struct {
@@ -130,7 +131,10 @@ func snapshotOrder(tx *gorm.DB, id string) (orderSnapshot, error) {
 	if err := tx.Model(&dto.ProductionItem{}).Where("order_id = ?", id).Pluck("id", &s.ProductionLinks).Error; err != nil {
 		return s, err
 	}
-	err := tx.Model(&dto.OperationItem{}).Where("order_id = ?", id).Pluck("id", &s.OperationLinks).Error
+	if err := tx.Model(&dto.OperationItem{}).Where("order_id = ?", id).Pluck("id", &s.OperationLinks).Error; err != nil {
+		return s, err
+	}
+	err := tx.Model(&dto.BuktiKasItem{}).Where("order_id = ?", id).Pluck("id", &s.BuktiKasLinks).Error
 	return s, err
 }
 
@@ -351,6 +355,11 @@ func restoreOrder(tx *gorm.DB, s orderSnapshot) error {
 	}
 	if len(s.OperationLinks) > 0 {
 		if err := tx.Model(&dto.OperationItem{}).Where("id IN ? AND order_id IS NULL", s.OperationLinks).Update("order_id", s.Order.Id).Error; err != nil {
+			return err
+		}
+	}
+	if len(s.BuktiKasLinks) > 0 {
+		if err := tx.Model(&dto.BuktiKasItem{}).Where("id IN ? AND order_id IS NULL", s.BuktiKasLinks).Update("order_id", s.Order.Id).Error; err != nil {
 			return err
 		}
 	}
