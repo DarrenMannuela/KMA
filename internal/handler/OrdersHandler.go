@@ -120,6 +120,19 @@ func UpdateOrders(c *gin.Context) {
 		updates["client_contact_id"] = body.ClientContactId
 	}
 
+	// Cancelling (cancelled_at set) or reactivating (cancelled_at null); a
+	// reactivated order drops its reason too.
+	_, cancelSent := raw["cancelled_at"]
+	if cancelSent {
+		updates["cancelled_at"] = body.CancelledAt
+		if body.CancelledAt == nil {
+			updates["cancel_reason"] = nil
+		}
+	}
+	if _, ok := raw["cancel_reason"]; ok && (!cancelSent || body.CancelledAt != nil) {
+		updates["cancel_reason"] = body.CancelReason
+	}
+
 	// Anchored to the old id, so it renames the row and fires ON UPDATE
 	// CASCADE. Cost lines point at an order without a foreign key, so a rename
 	// carries them along here, in the same transaction.
@@ -127,10 +140,22 @@ func UpdateOrders(c *gin.Context) {
 		if err := tx.Model(&dto.Orders{}).Where("id = ?", existing.Id).Updates(updates).Error; err != nil {
 			return err
 		}
-		if newId == existing.Id {
+		if newId != existing.Id {
+			if err := relinkCosts(tx, existing.Id, &newId); err != nil {
+				return err
+			}
+		}
+		if !cancelSent {
 			return nil
 		}
-		return relinkCosts(tx, existing.Id, &newId)
+		// The order's unpaid invoices follow it: cancelled with it (so they
+		// aren't money owed any more), unpaid again when it's reactivated.
+		// Paid ones are money received and stay as they are.
+		from, to := "unpaid", "cancelled"
+		if body.CancelledAt == nil {
+			from, to = "cancelled", "unpaid"
+		}
+		return tx.Model(&dto.Invoice{}).Where("order_id = ? AND status = ?", newId, from).Update("status", to).Error
 	})
 	if err != nil {
 		dbError(c, err)

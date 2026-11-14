@@ -29,7 +29,7 @@ type Invoice struct {
 	Tanggal  time.Time  `json:"tanggal"`
 	DueDate  *time.Time `json:"due_date"`
 	PaidDate *time.Time `json:"paid_date"`
-	Status   string     `json:"status"` // "unpaid" / "paid"
+	Status   string     `json:"status"` // "unpaid" / "paid" / "cancelled" (its order was cancelled while unpaid)
 
 	Orders Orders `json:"-" gorm:"foreignKey:OrderId;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }

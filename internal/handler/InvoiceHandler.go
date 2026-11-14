@@ -47,6 +47,13 @@ func PostInvoice(c *gin.Context) {
 		return
 	}
 
+	// A cancelled order isn't billed; reactivate it first.
+	var order dto.Orders
+	if err := db.Where("id = ?", newInvoice.OrderId).First(&order).Error; err == nil && order.CancelledAt != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "This order is cancelled. Reactivate it before making an invoice."})
+		return
+	}
+
 	result := db.Create(&newInvoice)
 	if result.Error != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "An invoice with this ID already exists"})

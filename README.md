@@ -112,6 +112,12 @@ so a partial update never zeroes out the rest of the row.
   really a PDF/JPG/PNG, a PDF missing its end (cut off while downloading),
   and a photo that won't decode fully are refused with a `400` saying what
   to do.
+- Cancelling an order: `PATCH /api/v1/order/:id` with `{"cancelled_at": "<time>", "cancel_reason": "…"}`
+  sets `orders.cancelled_at` / `cancel_reason` and, in the same transaction,
+  turns the order's `unpaid` invoices to status `cancelled` (paid ones are
+  left alone). `{"cancelled_at": null}` reactivates it: the reason is
+  cleared and its `cancelled` invoices go back to `unpaid`. `POST
+  /api/v1/invoice` for a cancelled order is refused with `409`.
 - `/api/v1/invoice-sheet?invoice_id=…` holds one invoice's item-table
   layout and formatting, shared by everyone: `GET` answers `settings: null`
   until something is saved, `PUT` saves `{"settings": {...}}` (an object up
